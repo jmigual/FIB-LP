@@ -56,31 +56,61 @@ data Command a =
      show (Cond b i e)  = "IF " ++ (show b) ++ " THEN\n" ++ (show i) ++ "ELSE\n" ++ (show e) ++ "END"
      show (Loop b c)    = "WHILE " ++ (show b) ++ "\nDO\n" ++ (show c) ++ "END\n"
 -}
--- Creates a Input Command from a String
-readInput :: String -> (Command a, String)
-readInput s = Input (Var xs)
-    where xs = dropWhile (== ' ') (dropWhile (/= ' ') s)
 
-readSeq :: String -> (Command a, String)
-readSeq s
-    | com == "INPUT"    = 
-    {-| com == "IF"       =
-    | com == "WHILE"    =
-    | com == "DO"       =
+dropNextWord ::  String -> String
+dropNextWord s  = dropWhile (== ' ') (dropWhile (/=' ') s)
+
+-- Creates a Input Command from a String
+readCommandInput :: String -> (Command a, String)
+readCommandInput s = (Input (Var fst), last)
+    where 
+        (fst, scd) = span (/= ';') s
+        last = dropWhile (==' ') (drop 1 scd)
+
+-- Creates a If Command from a String
+readCommandIf :: String -> (Command a, String)
+readCommandIf s = (Cond b ifCom elCom, rem)
+    where 
+        init            = dropNextWord s        -- Remove IF 
+        (b, bRem)       = readBoolExpr init     -- Read boolean expression
+        thenRem         = dropNextWord bRem     -- Remove THEN
+        (ifCom, ifRem)  = readCommandSeq thenRem       -- Read if commands, stops when founds the ELSE
+        eRem            = dropNextWord ifRem    -- Remove ELSE
+        (elCom, elRem)  = readCommandSeq elRem         -- Read else commands, stops when founds END
+        rem             = dropNextWord elRem    -- Remove END
+
+readCommandWhile :: String -> (Command a , String)
+readCommandWhile s
+    where
+        init            = dropNextWord s        -- Remove WHILE
+        (b, bRem)       = readBoolExpr init     -- Read boolean expression
+        wRem            = dropNextWord
+
+-- Creates a Seq Command from a String and the selected function
+readCommandSomSeq :: (String -> (Command a, String)) -> String -> (Command a, String)
+readCommandSomSeq _ [] = (Seq [], [])
+readCommandSomSeq f s  = (Seq (com:xs), last)
+    where   (com, rem)      = f s
+            (Seq xs, last)  = readCommandSeq rem
+
+
+-- Creates a Seq Command from a String
+readCommandSeq :: String -> (Command a, String)
+readCommandSeq s
+    | com == "INPUT"    = readCommandSomSeq readCommandInput s
+    | com == "IF"       = readCommandSomSeq readCommandIf s
+    | com == "WHILE"    = readCommandSomSeq readCommandWhile s
+  {-  | com == "DO"       =
     | com == "PRINT"    =
     | com == "END"      = -}
     | otherwise         = (Seq [], [])
     where 
-        
-
-        (inst, queueD)  = span (/= ';') s
-        com             = takeWhile(\x -> x /= ' ') inst
-        queue           = drop 1 queueD
-        (Seq xs)        = readSeq queue
+        com             = takeWhile(\x -> x /= ' ') s
 
 -- Creates an AST from the input String
 readCommand :: Num a => String -> Command a
-readCommand s = first(readSeq s)
+readCommand s = fst
+    where (fst, scd) = readCommandSeq s
     
 
 main = 
