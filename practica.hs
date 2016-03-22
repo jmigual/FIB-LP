@@ -57,8 +57,16 @@ data Command a =
      show (Loop b c)    = "WHILE " ++ (show b) ++ "\nDO\n" ++ (show c) ++ "END\n"
 -}
 
-dropNextWord ::  String -> String
-dropNextWord s  = dropWhile (== ' ') (dropWhile (/=' ') s)
+dropNextWord ::  String -> (String, String)
+dropNextWord s  = (w, d)
+    where 
+        begin       = dropWhile (==' ') s
+        (w, rem)    = span (/=' ') begin
+        d           = dropWhile (==' ') rem
+
+readBoolExpr :: String -> (BoolExpr a, String)
+readBoolExpr s = (Gt (Var "b") (Var "a"), s)
+
 
 -- Creates a Input Command from a String
 readCommandInput :: String -> (Command a, String)
@@ -71,20 +79,22 @@ readCommandInput s = (Input (Var fst), last)
 readCommandIf :: String -> (Command a, String)
 readCommandIf s = (Cond b ifCom elCom, rem)
     where 
-        init            = dropNextWord s        -- Remove IF 
-        (b, bRem)       = readBoolExpr init     -- Read boolean expression
-        thenRem         = dropNextWord bRem     -- Remove THEN
-        (ifCom, ifRem)  = readCommandSeq thenRem       -- Read if commands, stops when founds the ELSE
-        eRem            = dropNextWord ifRem    -- Remove ELSE
-        (elCom, elRem)  = readCommandSeq elRem         -- Read else commands, stops when founds END
-        rem             = dropNextWord elRem    -- Remove END
+        init            = fst (dropNextWord s)      -- Remove IF 
+        (b, bRem)       = readBoolExpr init         -- Read boolean expression
+        thenRem         = fst (dropNextWord bRem)   -- Remove THEN
+        (ifCom, ifRem)  = readCommandSeq thenRem    -- Read if commands, stops when founds the ELSE
+        eRem            = fst (dropNextWord ifRem)  -- Remove ELSE
+        (elCom, elRem)  = readCommandSeq elRem      -- Read else commands, stops when founds END
+        rem             = fst (dropNextWord elRem)  -- Remove END
 
 readCommandWhile :: String -> (Command a , String)
-readCommandWhile s
+readCommandWhile s      = (Loop b wCom, rem)
     where
-        init            = dropNextWord s        -- Remove WHILE
-        (b, bRem)       = readBoolExpr init     -- Read boolean expression
-        wRem            = dropNextWord
+        init            = fst (dropNextWord s)      -- Remove WHILE
+        (b, bRem)       = readBoolExpr init         -- Read boolean expression
+        dRem            = fst (dropNextWord bRem)   -- Remove DO
+        (wCom, wRem)    = readCommandSeq dRem       -- Read sequence
+        rem             = fst (dropNextWord wRem)   -- Remove END
 
 -- Creates a Seq Command from a String and the selected function
 readCommandSomSeq :: (String -> (Command a, String)) -> String -> (Command a, String)
@@ -105,7 +115,7 @@ readCommandSeq s
     | com == "END"      = -}
     | otherwise         = (Seq [], [])
     where 
-        com             = takeWhile(\x -> x /= ' ') s
+        com             = takeWhile (/=' ') s
 
 -- Creates an AST from the input String
 readCommand :: Num a => String -> Command a
