@@ -1,6 +1,8 @@
 import System.IO
 import Data.List
 import Data.List.Split
+import Data.Maybe;
+import Text.Read
 
 ---------------------- MAIN CODE ---------------------
 
@@ -64,15 +66,33 @@ dropNextWord s  = (w, d)
         (w, rem)    = span (/=' ') begin
         d           = dropWhile (==' ') rem
 
+readStringNum :: Read a => String -> Either String a
+readStringNum s
+    | isJust num    = Right a
+    | otherwise     = Left String
+    where 
+        num     = readMaybe s :: Maybe a
+
+readNumExprMul :: String -> NumExpr a
+readNumExprMul s    =  Var "X"
+    where
+        xs      = splitOn " * " s
+
+
+
+readNumExpr :: String -> (NumExpr a, String)
+readNumExpr s = (Var "3", s)
+
+
 readBoolExpr :: String -> (BoolExpr a, String)
 readBoolExpr s = (Gt (Var "b") (Var "a"), s)
 
 
 -- Creates a Input Command from a String
 readCommandInput :: String -> (Command a, String)
-readCommandInput s = (Input (Var fst), last)
-    where 
-        (fst, scd) = span (/= ';') s
+readCommandInput s  = (Input (Var fst), last)
+    where
+        (fst, scd) = span (/= ';') (snd (dropNextWord s))
         last = dropWhile (==' ') (drop 1 scd)
 
 -- Creates a If Command from a String
