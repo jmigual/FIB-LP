@@ -6,35 +6,35 @@ import Text.Read
 ---------------------- MAIN CODE ---------------------
 
 data BoolExpr a = 
-    AND (BoolExpr a) (BoolExpr a) | 
-    OR (BoolExpr a) (BoolExpr a) | 
-    NOT (BoolExpr a) |
-    Gt (NumExpr a) (NumExpr a) |
+    AND (BoolExpr a) (BoolExpr a)   | 
+    OR (BoolExpr a) (BoolExpr a)    | 
+    NOT (BoolExpr a)                |
+    Gt (NumExpr a) (NumExpr a)      |
     Eq (NumExpr a) (NumExpr a)
     deriving(Read) 
 
 data NumExpr a = 
-    Var String | 
-    Const a |
-    Plus (NumExpr a) (NumExpr a) |
-    Minus (NumExpr a) (NumExpr a) |
-    Times (NumExpr a) (NumExpr a) |
+    Var String                      | 
+    Const a                         |
+    Plus (NumExpr a) (NumExpr a)    |
+    Minus (NumExpr a) (NumExpr a)   |
+    Times (NumExpr a) (NumExpr a)   |
     Div (NumExpr a) (NumExpr a) 
     deriving (Read)
 
 data Command a = 
-    Assign (NumExpr a) (NumExpr a) | 
-    Input (NumExpr a) | 
-    Print (NumExpr a) | 
-    Seq [Command a] | 
-    Cond (BoolExpr a) (Command a) (Command a) | 
+    Assign (NumExpr a) (NumExpr a)              | 
+    Input (NumExpr a)                           | 
+    Print (NumExpr a)                           | 
+    Seq [Command a]                             | 
+    Cond (BoolExpr a) (Command a) (Command a)   | 
     Loop (BoolExpr a) (Command a)
     deriving(Read)
 
 instance Show a => Show (BoolExpr a) where
+    show (NOT a)    = "NOT " ++ (show a)
     show (AND a b)  = (show a) ++ " AND " ++ (show b)
     show (OR a b)   = (show a) ++ " OR " ++ (show b)
-    show (NOT a)    = "NOT " ++ (show a)
     show (Gt a b)   = (show a) ++ " > " ++ (show b)
     show (Eq a b)   = (show a) ++ " = " ++ (show b)
 
@@ -46,38 +46,39 @@ instance Show a => Show (NumExpr a) where
     show (Times a b)    = (show a) ++ " * " ++ (show b)
     show (Div a b)      = (show a) ++ " / " ++ (show b) 
     
-instance Show a => Show (Command a) 
-    where
-        show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
-        show (Input x)      = "INPUT " ++ (show x) ++ ";"
-        show (Print x)      = "PRINT " ++ (show x) ++ ";"
-        show c              = showIdent 0 0 c
+instance Show a => Show (Command a) where
+    show (Input x)      = "INPUT " ++ (show x) ++ ";"
+    show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
+    show (Print x)      = "PRINT " ++ (show x) ++ ";"
+    show c              = showIdent 0 0 c
+        where 
+        showIdent :: Show a => Int -> Int -> Command a -> String
+        showIdent _ _ (Seq [])  = []
+        showIdent n i (Seq (x:[]))
+            | i == 0        = showIdent n i x
+            | otherwise     = ' ':(showIdent n (i-1) (Seq (x:[])))
+        showIdent n i (Seq (x:xs)) 
+            | i == 0        = (showIdent n i x) ++ '\n':(showIdent n n (Seq xs))
+            | otherwise     = ' ':(showIdent n (i-1) (Seq (x:xs)))
+        showIdent n i (Cond b ii ee) = "IF " ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl 
             where 
-                showIdent :: Show a => Int -> Int -> Command a -> String
-                showIdent _ _ ( Seq [])    = []
-                showIdent n i (Seq (x:xs)) 
-                    | i == 0        = (show x) ++ '\n':(showIdent n n (Seq xs))
-                    | otherwise     = ' ':(showIdent n (i-1) (Seq (x:xs)))
-                showIdent n i (Cond b ii ee) = ifS ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl 
-                    where 
-                        showIf      = showIdent (n+4) (n+4) ii
-                        showEl      = showIdent (n+4) (n+4) ee
-                        ifS         = addSpaces n "IF "
-                        elseS       = addSpaces n "ELSE\n"
-                showIdent n i (Loop b c) = whileS ++ (show b) ++ "\nDO\n" ++ loop ++ endS
-                    where
-                        whileS      = addSpaces n "WHILE "
-                        endS        = addSpaces n "END\n"
-                        loop        = showIdent (n+4) (n+4) c
-                showIdent n i c
-                    | i == 0        = show c
-                    | otherwise     = ' ':(showIdent n (i-1) c)
+                showIf      = showIdent (n+4) (n+4) ii
+                showEl      = showIdent (n+4) (n+4) ee
+                elseS       = '\n':(addSpaces n "ELSE\n")
+        showIdent n i (Loop b l) = "WHILE " ++ (show b) ++ doS ++ loop ++ endS
+            where
+                doS         = '\n':(addSpaces n "DO\n")
+                endS        = '\n':(addSpaces n "END\n")
+                loop        = showIdent (n+4) (n+4) l
+        showIdent n i c
+            | i == 0        = show c
+            | otherwise     = ' ':(showIdent n (i-1) c)
 
-                -- Adds n spaces
-                addSpaces :: Int -> String -> String
-                addSpaces n s
-                    | n == 0        = s
-                    | otherwise     = ' ':(addSpaces (n-1) s)
+        -- Adds n spaces
+        addSpaces :: Int -> String -> String
+        addSpaces n s
+            | n == 0        = s
+            | otherwise     = ' ':(addSpaces (n-1) s)
 
 -- Separates the next word from the passed String
 dropNextWord ::  String -> (String, String)
@@ -91,7 +92,7 @@ dropNextWord s  = (w, d)
 dropNextLine :: String -> (String, String)
 dropNextLine s = (b, e)
     where
-        (b, dirty)  = span (\x -> x /= ';' && x /= ' ' && x /= '\n') s
+        (b, dirty)  = span (\x -> x /= ';' && x /= '\n') s
         e           = dropWhile (\x -> x == ';' || x == ' ' || x == '\n') dirty
 
 -- Reads a String and returns a NumExpr (if it founds a String name
@@ -215,7 +216,6 @@ readBool s = (readBoolOr expr, dirty)
     where
         (expr, dirty)       = takeCommand s ["THEN", "DO"]
 
-
 -- Creates a Input Command from a String
 readCommandInput :: String -> (Command a, String)
 readCommandInput s  = (Input (Var var), rema)
@@ -242,7 +242,7 @@ readCommandIf s = (Cond b ifCom elCom, remaining)
         (elCom, elRem)  = readCommandSeq eRem      -- Read else commands, stops when founds END
         remaining       = snd $ dropNextWord elRem  -- Remove END
 
--- Creates a WHile Command from a String
+-- Creates a While Command from a String
 readCommandWhile :: Read a => String -> (Command a , String)
 readCommandWhile s      = (Loop b wCom, remaining)
     where
@@ -251,8 +251,14 @@ readCommandWhile s      = (Loop b wCom, remaining)
         dRem            = snd $ dropNextWord bRem   -- Remove DO
         (wCom, wRem)    = readCommandSeq dRem       -- Read sequence
         remaining       = snd $ dropNextWord wRem   -- Remove END
-        
 
+-- Creates an Assign Command from a String
+readCommandAssign :: Read a => String -> (Command a, String)
+readCommandAssign s     = (Assign (Var var) expr, remain)
+    where
+        (var, dirty)    = dropNextWord s            -- Get var
+        dExpr           = snd $ dropNextWord dirty  -- Remove ':='
+        (expr, remain) = readNumExpr dExpr        -- Get expression and next line
 
 -- Creates a Seq Command from a String
 readCommandSeq :: Read a => String -> (Command a, String)
@@ -264,7 +270,7 @@ readCommandSeq s
     | com == "ELSE"     = (Seq [], s)
     | com == "END"      = (Seq [], s)
     | com == "PRINT"    = readCommandSomSeq readCommandPrint s
-    | otherwise         = error "readCommandSeq: Unknown command"
+    | otherwise         = readCommandSomSeq readCommandAssign s
     where 
         com             = fst $ dropNextWord s
 
