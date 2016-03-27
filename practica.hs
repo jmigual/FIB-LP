@@ -66,26 +66,89 @@ dropNextWord s  = (w, d)
         (w, rem)    = span (/=' ') begin
         d           = dropWhile (==' ') rem
 
-readStringNum :: Read a => String -> Either String a
+-- Reads a String and returns a NumExpr (if it founds a String name
+-- creates a Var "name", otherwise creates a const "Number")
+readStringNum :: Read a => String -> NumExpr a
 readStringNum s
-    | isJust num    = Right a
-    | otherwise     = Left String
+    | isJust num    = Const n
+    | otherwise     = Var s
     where 
-        num     = readMaybe s :: Maybe a
+        num     = readMaybe s
+        Just n  = num
 
-readNumExprMul :: String -> NumExpr a
-readNumExprMul s    =  Var "X"
+-- Read multiplications, 4th level of recursion (last)
+readNumExprMul :: Read a => String -> NumExpr a
+readNumExprMul s    = concatMul nums
     where
-        xs      = splitOn " * " s
+        timesS      = splitOn " * " s
+        nums        = map readStringNum timesS
+
+        concatMul :: [NumExpr a] -> NumExpr a
+        concatMul (x:[])    = x
+        concatMul (x:xs)    = Times x (concatMul xs)
+
+-- Read divisions, 3rd level of recursion
+readNumExprDiv :: Read a => String -> NumExpr a
+readNumExprDiv s     = concatDiv nums
+    where
+        divsS   = splitOn " / " s
+        nums    = map readNumExprMul divsS
+
+        concatDiv :: [NumExpr a] -> NumExpr a
+        concatDiv (x:[])    = x
+        concatDiv (x:xs)    = Div x (concatDiv xs)
+
+-- Read minus, 2nd level of recursion
+readNumExprMin :: Read a => String -> NumExpr a
+readNumExprMin s    = concatMin nums
+    where
+        minsS   = splitOn " - " s
+        nums    = map readNumExprDiv minsS
+
+        concatMin :: [NumExpr a] -> NumExpr a
+        concatMin (x:[])    = x
+        concatMin (x:xs)    = Minus x (concatMin xs)
+
+-- Read plus, 1st level of recursion
+readNumExprPlu :: Read a => String -> NumExpr a
+readNumExprPlu s    = concatPlu nums
+    where
+        plusS   = splitOn " + " s
+        nums    = map readNumExprMin plusS
+
+        concatPlu :: [NumExpr a] -> NumExpr a
+        concatPlu (x:[])    = x
+        concatPlu (x:xs)    = Plus x (concatPlu xs)
+
+-- Reads a numeric expression and returns the remaining string
+readNumExpr :: Read a => String -> (NumExpr a, String)
+readNumExpr s = (readNumExprPlu str, rem)
+    where 
+        (str, rem)  = takeCommand s [">", "<", "AND", "OR", "THEN", "DO"]
 
 
+{-readBoolExprGt :: Read a => String -> BoolExpr a
+readBoolExprGt s    = Gt x y
+    where
+        str         = splitOn " > " s
+        exp         = map (\x -> fst (readNumExpr x)) str
+        (x:y:[])  = exp
+-}
 
-readNumExpr :: String -> (NumExpr a, String)
-readNumExpr s = (Var "3", s)
+takeCommand :: String -> [String] -> (String, String) 
+takeCommand s xs
+    | elem com xs    = ("", s)
+    | expr == ""        = (com, rems)
+    | otherwise         = (com ++ " " ++ expr, rems)
+    where 
+        (com, rem)      = dropNextWord s
+        (expr, rems)    = takeCommand rem xs
 
+{-readBoolExprEq :: Read a => String -> (BoolExpr a, String)
+readBoolExprEq s-}
 
 readBoolExpr :: String -> (BoolExpr a, String)
-readBoolExpr s = (Gt (Var "b") (Var "a"), s)
+readBoolExpr s = (Gt (Var "3") (Var "4"), "")
 
 
 -- Creates a Input Command from a String
