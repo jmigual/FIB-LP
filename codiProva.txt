@@ -1,0 +1,5 @@
+IF X > 0 OR X = 0 OR NOT 0 > Y THEN 
+    PRINT Z;
+ELSE
+    INPUT X;
+END

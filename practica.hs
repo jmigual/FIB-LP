@@ -31,6 +31,7 @@ data Command a =
     Loop (BoolExpr a) (Command a)
     deriving(Read)
 
+-- Instance of Show for BoolExpr
 instance Show a => Show (BoolExpr a) where
     show (NOT a)    = "NOT " ++ (show a)
     show (AND a b)  = (show a) ++ " AND " ++ (show b)
@@ -38,14 +39,16 @@ instance Show a => Show (BoolExpr a) where
     show (Gt a b)   = (show a) ++ " > " ++ (show b)
     show (Eq a b)   = (show a) ++ " = " ++ (show b)
 
+-- Instance of Show for NumExpr
 instance Show a => Show (NumExpr a) where
-    show (Var s)        = s
+    show (Var s)        = '"':(s ++ "\"")
     show (Const a)      = show a
     show (Plus a b)     = (show a) ++ " + " ++ (show b)
     show (Minus a b)    = (show a) ++ " - " ++ (show b)
     show (Times a b)    = (show a) ++ " * " ++ (show b)
     show (Div a b)      = (show a) ++ " / " ++ (show b) 
     
+-- Instance of Show for Command
 instance Show a => Show (Command a) where
     show (Input x)      = "INPUT " ++ (show x) ++ ";"
     show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
@@ -84,7 +87,7 @@ instance Show a => Show (Command a) where
 dropNextWord ::  String -> (String, String)
 dropNextWord s  = (w, d)
     where 
-        begin       = dropWhile (==' ') s
+        begin       = dropWhile (\x -> x ==' ' || x == '\n') s
         (w, r)      = span (/=' ') begin
         d           = dropWhile (==' ') r
 
@@ -157,7 +160,7 @@ readNumExprPlu s    = concatPlu nums
 readNumExpr :: Read a => String -> (NumExpr a, String)
 readNumExpr s = (readNumExprPlu str, r)
     where 
-        (str, r)  = dropNextLine s
+        (str, r)  = dropNextLine s--takeCommand s [">", "=", "THEN", "DO", "END"]
 
 -- Takes items until a command from the list is found
 takeCommand :: String -> [String] -> (String, String) 
@@ -236,10 +239,10 @@ readCommandIf s = (Cond b ifCom elCom, remaining)
     where 
         noIf            = snd $ dropNextWord s      -- Remove IF 
         (b, bRem)       = readBool noIf             -- Read boolean expression
-        thenRem         = snd $ dropNextWord bRem   -- Remove THEN
+        thenRem         = snd $ dropNextLine bRem   -- Remove THEN
         (ifCom, ifRem)  = readCommandSeq thenRem    -- Read if commands, stops when founds the ELSE
         eRem            = snd $ dropNextWord ifRem  -- Remove ELSE
-        (elCom, elRem)  = readCommandSeq eRem      -- Read else commands, stops when founds END
+        (elCom, elRem)  = readCommandSeq eRem       -- Read else commands, stops when founds END
         remaining       = snd $ dropNextWord elRem  -- Remove END
 
 -- Creates a While Command from a String
@@ -289,6 +292,6 @@ readCommand s = fst $ readCommandSeq s
 main :: IO ()
 main = 
     do
-        h <- openFile "codiPractica.txt" ReadMode
+        h <- openFile "codiProva.txt" ReadMode
         s <- hGetContents h
         putStrLn (show (readCommand s :: Command Int))
