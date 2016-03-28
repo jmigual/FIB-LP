@@ -3,7 +3,31 @@ import Data.List.Split
 import Data.Maybe
 import Text.Read
 
----------------------- MAIN CODE ---------------------
+---------------------- DATA STRUCTURES ---------------------
+
+class SymTable m where
+    update :: m a -> String -> a -> m a
+    value :: m a -> String -> a
+    start :: m a 
+
+data Memory a = Mem [(String, a)]
+    deriving (Show)
+
+instance SymTable Memory where
+    update (Mem []) _ _  = error "Variable name not found"
+    update (Mem ((s, n):xs)) name val
+        | s == name     = Mem $ (s, val):xs
+        | otherwise     = Mem $ (s, n):xss
+        where 
+            Mem xss = update (Mem xs) name val
+
+
+    value (Mem []) _ = error "Variable name not found"
+    value (Mem ((s,n):xs)) name
+        | s == name     = n
+        | otherwise     = value (Mem xs) name
+
+    start = Mem []
 
 data BoolExpr a = 
     AND (BoolExpr a) (BoolExpr a)   | 
@@ -84,6 +108,8 @@ instance Show a => Show (Command a) where
             | n == 0        = s
             | otherwise     = ' ':(addSpaces (n-1) s)
 
+-------------------------- AUXILIAR FUNCTIONS -----------------------
+
 -- Separates the next word from the passed String
 dropNextWord ::  String -> (String, String)
 dropNextWord s  = (w, d)
@@ -116,11 +142,13 @@ concatCons _ (x:[]) = x
 concatCons f (x:xs) = f x (concatCons f xs)
 
 -- Reads a recusive expression, pass the constructor, the recursive function and the split string
-readRecExpr :: Read a => (String -> a) -> (a-> a-> a) -> String -> String -> a
+readRecExpr :: Read a => (String -> a) -> (a -> a -> a) -> String -> String -> a
 readRecExpr f c split s = concatCons c mapped
     where
         subs    = splitOn split s
         mapped  = map f subs
+
+------------------------- MAIN CODE --------------------------
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
