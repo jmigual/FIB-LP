@@ -63,16 +63,17 @@ instance Show a => Show (Command a) where
         showIdent n i (Seq (x:xs)) 
             | i == 0        = (showIdent n i x) ++ '\n':(showIdent n n (Seq xs))
             | otherwise     = ' ':(showIdent n (i-1) (Seq (x:xs)))
-        showIdent n i (Cond b ii ee) = "IF " ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl 
+        showIdent n i (Cond b ii ee) = "IF " ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl ++ endS
             where 
                 showIf      = showIdent (n+4) (n+4) ii
-                showEl      = showIdent (n+4) (n+4) ee
                 elseS       = '\n':(addSpaces n "ELSE\n")
+                showEl      = showIdent (n+4) (n+4) ee
+                endS        = '\n':(addSpaces n "END")
         showIdent n i (Loop b l) = "WHILE " ++ (show b) ++ doS ++ loop ++ endS
             where
                 doS         = '\n':(addSpaces n "DO\n")
-                endS        = '\n':(addSpaces n "END\n")
                 loop        = showIdent (n+4) (n+4) l
+                endS        = '\n':(addSpaces n "END")
         showIdent n i c
             | i == 0        = show c
             | otherwise     = ' ':(showIdent n (i-1) c)
@@ -88,7 +89,7 @@ dropNextWord ::  String -> (String, String)
 dropNextWord s  = (w, d)
     where 
         begin       = dropWhile (\x -> x ==' ' || x == '\n') s
-        (w, r)      = span (/=' ') begin
+        (w, r)      = span (\x -> x /=' ' && x  /= '\n') begin
         d           = dropWhile (==' ') r
 
 -- Removes the ';' and the remaining spaces or endlines
@@ -108,53 +109,39 @@ readStringNum s
         num     = readMaybe s
         Just n  = num
 
+-- Concatenates constructors
+concatCons :: Read a => (a -> a -> a) -> [a] -> a
+concatCons _ []     = error "concatCons: Empty List"
+concatCons _ (x:[]) = x
+concatCons f (x:xs) = f x (concatCons f xs)
+
 -- Read multiplications, 4th level of recursion (last)
 readNumExprMul :: Read a => String -> NumExpr a
-readNumExprMul s    = concatMul nums
+readNumExprMul s    = concatCons Times nums
     where
         timesS      = splitOn " * " s
         nums        = map readStringNum timesS
 
-        concatMul :: [NumExpr a] -> NumExpr a
-        concatMul []        = error "concatMul: Empty list"
-        concatMul (x:[])    = x
-        concatMul (x:xs)    = Times x (concatMul xs)
-
 -- Read divisions, 3rd level of recursion
 readNumExprDiv :: Read a => String -> NumExpr a
-readNumExprDiv s     = concatDiv nums
+readNumExprDiv s     = concatCons Div nums
     where
         divsS   = splitOn " / " s
         nums    = map readNumExprMul divsS
 
-        concatDiv :: [NumExpr a] -> NumExpr a
-        concatDiv []        = error "concatDiv: Empty list"
-        concatDiv (x:[])    = x
-        concatDiv (x:xs)    = Div x (concatDiv xs)
-
 -- Read minus, 2nd level of recursion
 readNumExprMin :: Read a => String -> NumExpr a
-readNumExprMin s    = concatMin nums
+readNumExprMin s    = concatCons Minus nums
     where
         minsS   = splitOn " - " s
         nums    = map readNumExprDiv minsS
 
-        concatMin :: [NumExpr a] -> NumExpr a
-        concatMin []        = error "concatMin: Empty list"
-        concatMin (x:[])    = x
-        concatMin (x:xs)    = Minus x (concatMin xs)
-
 -- Read plus, 1st level of recursion
 readNumExprPlu :: Read a => String -> NumExpr a
-readNumExprPlu s    = concatPlu nums
+readNumExprPlu s    = concatCons Plus nums
     where
         plusS   = splitOn " + " s
         nums    = map readNumExprMin plusS
-
-        concatPlu :: [NumExpr a] -> NumExpr a
-        concatPlu []        = error "concatPlu: Empty list"
-        concatPlu (x:[])    = x
-        concatPlu (x:xs)    = Plus x (concatPlu xs)
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
@@ -172,7 +159,6 @@ takeCommand s xs
     where 
         (com, cua)      = dropNextWord s
         (expr, cuar)    = takeCommand cua xs
-
 
 readBoolCom :: Read a => String -> BoolExpr a
 readBoolCom s
@@ -193,26 +179,16 @@ readBoolNot s
         (com, remaining)    = dropNextWord s
 
 readBoolAnd :: Read a => String -> BoolExpr a
-readBoolAnd s = concatAnd bool
+readBoolAnd s = concatCons AND bool
     where
         subs    = splitOn " AND " s
         bool    = map readBoolNot subs
 
-        concatAnd :: [BoolExpr a] -> BoolExpr a
-        concatAnd []        = error "concatAnd: Empty List"
-        concatAnd (x:[])    = x
-        concatAnd (x:xs)    = AND x (concatAnd xs)
-
 readBoolOr :: Read a => String -> BoolExpr a
-readBoolOr s = concatOr bool
+readBoolOr s = concatCons OR bool
     where
         subs    = splitOn " OR " s
         bool    = map readBoolAnd subs
-
-        concatOr :: [BoolExpr a] -> BoolExpr a
-        concatOr []     = error "concatOr: Empty List"
-        concatOr (x:[]) = x
-        concatOr (x:xs) = OR x (concatOr xs)
 
 readBool :: Read a => String -> (BoolExpr a, String)
 readBool s = (readBoolOr expr, dirty)
@@ -261,7 +237,7 @@ readCommandAssign s     = (Assign (Var var) expr, remain)
     where
         (var, dirty)    = dropNextWord s            -- Get var
         dExpr           = snd $ dropNextWord dirty  -- Remove ':='
-        (expr, remain) = readNumExpr dExpr        -- Get expression and next line
+        (expr, remain) = readNumExpr dExpr          -- Get expression and next line
 
 -- Creates a Seq Command from a String
 readCommandSeq :: Read a => String -> (Command a, String)
