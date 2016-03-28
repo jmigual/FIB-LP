@@ -115,39 +115,22 @@ concatCons _ []     = error "concatCons: Empty List"
 concatCons _ (x:[]) = x
 concatCons f (x:xs) = f x (concatCons f xs)
 
--- Read multiplications, 4th level of recursion (last)
-readNumExprMul :: Read a => String -> NumExpr a
-readNumExprMul s    = concatCons Times nums
+-- Reads a recusive expression, pass the constructor, the recursive function and the split string
+readRecExpr :: Read a => (String -> a) -> (a-> a-> a) -> String -> String -> a
+readRecExpr f c split s = concatCons c mapped
     where
-        timesS      = splitOn " * " s
-        nums        = map readStringNum timesS
-
--- Read divisions, 3rd level of recursion
-readNumExprDiv :: Read a => String -> NumExpr a
-readNumExprDiv s     = concatCons Div nums
-    where
-        divsS   = splitOn " / " s
-        nums    = map readNumExprMul divsS
-
--- Read minus, 2nd level of recursion
-readNumExprMin :: Read a => String -> NumExpr a
-readNumExprMin s    = concatCons Minus nums
-    where
-        minsS   = splitOn " - " s
-        nums    = map readNumExprDiv minsS
-
--- Read plus, 1st level of recursion
-readNumExprPlu :: Read a => String -> NumExpr a
-readNumExprPlu s    = concatCons Plus nums
-    where
-        plusS   = splitOn " + " s
-        nums    = map readNumExprMin plusS
+        subs    = splitOn split s
+        mapped  = map f subs
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
-readNumExpr s = (readNumExprPlu str, r)
+readNumExpr s = (plus, r)
     where 
-        (str, r)  = dropNextLine s--takeCommand s [">", "=", "THEN", "DO", "END"]
+        (str, r)    = dropNextLine s
+        times       = \x -> readRecExpr readStringNum Times " * " x
+        divs        = \y -> readRecExpr times Div " / " y
+        minus       = \z -> readRecExpr divs Minus " - " z
+        plus        = readRecExpr minus Plus " + " str
 
 -- Takes items until a command from the list is found
 takeCommand :: String -> [String] -> (String, String) 
@@ -160,6 +143,7 @@ takeCommand s xs
         (com, cua)      = dropNextWord s
         (expr, cuar)    = takeCommand cua xs
 
+-- Read bool comparison, 4th level of recursion (last)
 readBoolCom :: Read a => String -> BoolExpr a
 readBoolCom s
     | com == ">" = Gt nExpr1 nExpr2
@@ -171,6 +155,7 @@ readBoolCom s
         nExpr1          = fst $ readNumExpr expr1
         nExpr2          = fst $ readNumExpr expr2
 
+-- Read bool NOT, 3rd level of recursion
 readBoolNot :: Read a => String -> BoolExpr a
 readBoolNot s
     | com == "NOT"  = NOT (readBoolCom remaining)
@@ -178,18 +163,21 @@ readBoolNot s
     where 
         (com, remaining)    = dropNextWord s
 
+-- Read bool AND, 2nd level of recursion
 readBoolAnd :: Read a => String -> BoolExpr a
 readBoolAnd s = concatCons AND bool
     where
         subs    = splitOn " AND " s
         bool    = map readBoolNot subs
 
+-- Read bool OR, 1st level of recusion
 readBoolOr :: Read a => String -> BoolExpr a
 readBoolOr s = concatCons OR bool
     where
         subs    = splitOn " OR " s
         bool    = map readBoolAnd subs
 
+-- Reads a boolean expression and returns the remaining string
 readBool :: Read a => String -> (BoolExpr a, String)
 readBool s = (readBoolOr expr, dirty)
     where
@@ -252,7 +240,6 @@ readCommandSeq s
     | otherwise         = readCommandSomSeq readCommandAssign s
     where 
         com             = fst $ dropNextWord s
-
         -- Creates a Seq Command from a String and the selected function
         readCommandSomSeq :: Read a => (String -> (Command a, String)) -> String -> (Command a, String)
         readCommandSomSeq _ [] = (Seq [], [])
@@ -270,4 +257,4 @@ main =
     do
         h <- openFile "codiProva.txt" ReadMode
         s <- hGetContents h
-        putStrLn (show (readCommand s :: Command Int))
+        print (readCommand s :: Command Int)
