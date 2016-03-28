@@ -1,20 +1,24 @@
 import System.IO
 import Data.List.Split
 import Data.Maybe
+import Data.Either
 import Text.Read
 
 ---------------------- DATA STRUCTURES ---------------------
+
+------ INTERPRET --------
 
 class SymTable m where
     update :: m a -> String -> a -> m a
     value :: m a -> String -> a
     start :: m a 
+    contains :: m a -> String -> Bool
 
 data Memory a = Mem [(String, a)]
     deriving (Show)
 
 instance SymTable Memory where
-    update (Mem []) _ _  = error "Variable name not found"
+    update (Mem []) name val  = Mem $ (name, val):[]
     update (Mem ((s, n):xs)) name val
         | s == name     = Mem $ (s, val):xs
         | otherwise     = Mem $ (s, n):xss
@@ -22,12 +26,42 @@ instance SymTable Memory where
             Mem xss = update (Mem xs) name val
 
 
-    value (Mem []) _ = error "Variable name not found"
+    value (Mem []) _ = error "value: Variable name not found"
     value (Mem ((s,n):xs)) name
         | s == name     = n
         | otherwise     = value (Mem xs) name
 
     start = Mem []
+
+    contains (Mem []) n      = False
+    contains (Mem ((x,_):xs)) n
+        | x == n        = True
+        | otherwise     = contains (Mem xs) n
+
+data MemoryT a = Node String a (MemoryT a) (MemoryT a) | EmptyT
+    deriving (Show)
+
+instance SymTable MemoryT where
+    update EmptyT name val  = Node name val EmptyT EmptyT
+    update (Node n v l r) name val
+        | n == name     = Node n val l r
+        | n > name      = Node n v l (update r name val)
+        | otherwise     = Node n v (update l name val) r
+
+    value EmptyT _      = error "value: Variable name not found"
+    value (Node n v l r) name
+        | n == name     = v
+        | n > name      = value r name
+        | otherwise     = value l name
+
+    start = EmptyT
+
+    contains EmptyT _    = False
+    contains (Node n _ l r) name
+        | n == name     = True
+        | otherwise     = (contains l name) || (contains r name)
+
+--------- READ COMMAND ---------
 
 data BoolExpr a = 
     AND (BoolExpr a) (BoolExpr a)   | 
@@ -148,6 +182,22 @@ readRecExpr f c split s = concatCons c mapped
         subs    = splitOn split s
         mapped  = map f subs
 
+-- Gets the integer division between two numbers
+myDiv :: (Num a, Ord a) => a -> a -> a
+myDiv a b
+    | b == 0    = error "Division by 0"
+    | x > y     = getSign a b (1 + myDiv (x-y) y)
+    | otherwise = 0
+    where 
+        x = abs a
+        y = abs b
+        getSign :: (Num a, Ord a) => a -> a -> a -> a
+        getSign n m res
+            | n > 0 && m > 0    = res
+            | n > 0 && m < 0    = (-res)
+            | n < 0 && m > 0    = (-res)
+            | otherwise         = res
+
 ------------------------- MAIN CODE --------------------------
 
 -- Reads a numeric expression and returns the remaining string
@@ -259,6 +309,32 @@ readCommandSeq s
 -- Creates an AST from the input String
 readCommand :: Read a => String -> Command a
 readCommand s = fst $ readCommandSeq s
+
+-- Interpret Command Sequence
+interpretCommand :: (SymTable m, Num a, Ord a) => m a -> [a] -> Command a -> ((Either [a] String), m a, [a])
+interpretCommand mem inI (Seq [])       = (Left [], mem, inI)
+interpretCommand mem inI (Seq (x:xs)) 
+    | isRight outL  = (outL, memR, inp)
+    | isRight outF  = (outF, memF, inpF)
+    | otherwise     = (Left (out ++ o), memF, inpF)
+    where 
+        (outL, memR, inp)   = interpretCommand mem inI x
+        Left out             = outL
+        (outF, memF, inpF)  = interpretCommand memR inp (Seq xs)
+        Left o              = outF
+
+-- Interpret Command Input
+interpretCommand mem []     (Input _)       = (Right "Empty input", mem, [])
+interpretCommand mem (x:xs) (Input (Var n)) = (Left [], update mem n x, xs)
+interpretCommand mem xs     (Input _)       = (Right "Wrong Input command", mem, xs)
+
+-- Interpret Command Print
+interpretCommand mem i      (Print (Var x))
+    | contains mem x    = (Left [value mem x], mem, i)
+    | otherwise         = (Right $ "Variable " ++ x ++ " not initializated", mem, i)
+interpretCommand mem xs     (Print _)       = (Right "Wrong Print command", mem, xs)
+
+-- Interpret Command Assign
     
 main :: IO ()
 main = 
