@@ -123,14 +123,14 @@ instance Show a => Show (Command a) where
             | otherwise     = ' ':(showIdent n (i-1) (Seq (x:xs)))
         showIdent n i (Cond b ii ee) = "IF " ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl ++ endS
             where 
-                showIf      = showIdent (n+4) (n+4) ii
+                showIf      = showIdent (n+2) (n+2) ii
                 elseS       = '\n':(addSpaces n "ELSE\n")
-                showEl      = showIdent (n+4) (n+4) ee
+                showEl      = showIdent (n+2) (n+2) ee
                 endS        = '\n':(addSpaces n "END")
         showIdent n i (Loop b l) = "WHILE " ++ (show b) ++ doS ++ loop ++ endS
             where
                 doS         = '\n':(addSpaces n "DO\n")
-                loop        = showIdent (n+4) (n+4) l
+                loop        = showIdent (n+2) (n+2) l
                 endS        = '\n':(addSpaces n "END")
         showIdent n i c
             | i == 0        = show c
@@ -249,9 +249,16 @@ readBool s = (ors, dirty)
         ands            = \x -> readRecExpr readBoolNot AND " AND " x
         ors             = readRecExpr ands OR " OR " expr
 
+-- Creates a PRINT command creating also a NumExpr
+readCommandPrint :: Read a => String -> (Command a, String)
+readCommandPrint s = (Print num, remain)
+    where
+        noP             = snd $ dropNextWord s       -- Remove PRINT
+        (num, remain)   = readNumExpr noP            -- Read NumExpr
+
 -- Creates a command that uses a variable name
-readCommandVar :: Read a => (NumExpr a -> Command a) -> String -> (Command a, String)
-readCommandVar f s  = (f (Var var), rema)
+readCommandInput :: Read a => String -> (Command a, String)
+readCommandInput s  = (Input (Var var), rema)
     where
         (var, rema) = dropNextLine $ snd $ dropNextWord s
 
@@ -289,12 +296,12 @@ readCommandAssign s     = (Assign (Var var) expr, remain)
 readCommandSeq :: Read a => String -> (Command a, String)
 readCommandSeq []       = (Seq [], [])
 readCommandSeq s
-    | com == "INPUT"    = readCommandSomSeq (\x -> readCommandVar Input x) s
+    | com == "INPUT"    = readCommandSomSeq readCommandInput s
     | com == "IF"       = readCommandSomSeq readCommandIf s
     | com == "WHILE"    = readCommandSomSeq readCommandWhile s
     | com == "ELSE"     = (Seq [], s)
     | com == "END"      = (Seq [], s)
-    | com == "PRINT"    = readCommandSomSeq (\x -> readCommandVar Print x) s
+    | com == "PRINT"    = readCommandSomSeq readCommandPrint s
     | otherwise         = readCommandSomSeq readCommandAssign s
     where 
         com             = fst $ dropNextWord s
