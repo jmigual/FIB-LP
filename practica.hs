@@ -12,7 +12,7 @@ class SymTable m where
     update :: m a -> String -> a -> m a
     value :: m a -> String -> a
     start :: m a 
-    contains :: m a -> String -> Bool
+    exists :: m a -> String -> Bool
 
 data Memory a = Mem [(String, a)]
     deriving (Show)
@@ -33,10 +33,10 @@ instance SymTable Memory where
 
     start = Mem []
 
-    contains (Mem []) n      = False
-    contains (Mem ((x,_):xs)) n
+    exists (Mem []) n      = False
+    exists (Mem ((x,_):xs)) n
         | x == n        = True
-        | otherwise     = contains (Mem xs) n
+        | otherwise     = exists (Mem xs) n
 
 data MemoryT a = Node String a (MemoryT a) (MemoryT a) | EmptyT
     deriving (Show)
@@ -56,10 +56,10 @@ instance SymTable MemoryT where
 
     start = EmptyT
 
-    contains EmptyT _    = False
-    contains (Node n _ l r) name
+    exists EmptyT _    = False
+    exists (Node n _ l r) name
         | n == name     = True
-        | otherwise     = (contains l name) || (contains r name)
+        | otherwise     = (exists l name) || (exists r name)
 
 --------- READ COMMAND ---------
 
@@ -183,14 +183,16 @@ readRecExpr f c split s = concatCons c mapped
         mapped  = map f subs
 
 -- Gets the integer division between two numbers
-myDiv :: (Num a, Ord a) => a -> a -> a
+myDiv :: (Num a, Ord a) => a -> a -> Maybe a
 myDiv a b
-    | b == 0    = error "Division by 0"
-    | x > y     = getSign a b (1 + myDiv (x-y) y)
-    | otherwise = 0
+    | b == 0                    = Nothing
+    | (x >= y) && (isJust rDivM) = Just $ getSign a b (1 + rDiv)
+    | otherwise = Just 0
     where 
-        x = abs a
-        y = abs b
+        x           = abs a
+        y           = abs b
+        rDivM       = myDiv (x - y) y
+        Just rDiv   = rDivM
         getSign :: (Num a, Ord a) => a -> a -> a -> a
         getSign n m res
             | n > 0 && m > 0    = res
@@ -199,6 +201,23 @@ myDiv a b
             | otherwise         = res
 
 ------------------------- MAIN CODE --------------------------
+
+-- Evaluates a numExpr to a number
+{-
+evalNumExpr :: Num a -> NumExpr a -> Maybe a
+evalNumExpr (Const n)   = n
+evalNumExpr (Minus n m)-}
+
+evalNumExprAux :: Num a -> (NumExpr a -> NumExpr a -> NumExpr a) -> NumExpr a -> NumExpr a -> Maybe a
+evalNumExprAux f n m
+    | isJust x && isJust y  = Just (f x y)
+    | otherwise             = Nothing
+    where
+        xM      = evalNumExpr n
+        yM      = evalNumExpr m
+        Just x  = xM
+        Just y  = yM
+
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
@@ -337,7 +356,7 @@ interpretCommand mem xs     (Input _)       = (Right "Wrong Input command", mem,
 
 -- Interpret Command Print
 interpretCommand mem i      (Print (Var x))
-    | contains mem x    = (Left [value mem x], mem, i)
+    | exists mem x    = (Left [value mem x], mem, i)
     | otherwise         = (Right $ "Variable " ++ x ++ " not initializated", mem, i)
 interpretCommand mem xs     (Print _)       = (Right "Wrong Print command", mem, xs)
 
