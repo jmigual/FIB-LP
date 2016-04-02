@@ -10,7 +10,7 @@ import Text.Read
 
 class SymTable m where
     update :: m a -> String -> a -> m a
-    value :: m a -> String -> a
+    value :: m a -> String -> Maybe a
     start :: m a 
     exists :: m a -> String -> Bool
 
@@ -25,10 +25,9 @@ instance SymTable Memory where
         where 
             Mem xss = update (Mem xs) name val
 
-
-    value (Mem []) _ = error "value: Variable name not found"
+    value (Mem []) _ = Nothing
     value (Mem ((s,n):xs)) name
-        | s == name     = n
+        | s == name     = Just n
         | otherwise     = value (Mem xs) name
 
     start = Mem []
@@ -48,9 +47,9 @@ instance SymTable MemoryT where
         | n > name      = Node n v l (update r name val)
         | otherwise     = Node n v (update l name val) r
 
-    value EmptyT _      = error "value: Variable name not found"
+    value EmptyT _      = Nothing
     value (Node n v l r) name
-        | n == name     = v
+        | n == name     = Just v
         | n > name      = value r name
         | otherwise     = value l name
 
@@ -183,16 +182,16 @@ readRecExpr f c split s = concatCons c mapped
         mapped  = map f subs
 
 -- Gets the integer division between two numbers
-myDiv :: (Num a, Ord a) => a -> a -> Maybe a
+myDiv :: (Num a, Ord a) => a -> a -> Either a String
 myDiv a b
-    | b == 0                    = Nothing
-    | (x >= y) && (isJust rDivM) = Just $ getSign a b (1 + rDiv)
-    | otherwise = Just 0
+    | b == 0                        = Right "div: Error, division by 0"
+    | (x >= y) && (isLeft rDivM)    = Left $ getSign a b (1 + rDiv)
+    | otherwise = Left 0
     where 
         x           = abs a
         y           = abs b
         rDivM       = myDiv (x - y) y
-        Just rDiv   = rDivM
+        Left rDiv   = rDivM
         getSign :: (Num a, Ord a) => a -> a -> a -> a
         getSign n m res
             | n > 0 && m > 0    = res
@@ -203,20 +202,39 @@ myDiv a b
 ------------------------- MAIN CODE --------------------------
 
 -- Evaluates a numExpr to a number
-{-
-evalNumExpr :: Num a -> NumExpr a -> Maybe a
-evalNumExpr (Const n)   = n
-evalNumExpr (Minus n m)-}
 
-evalNumExprAux :: Num a -> (NumExpr a -> NumExpr a -> NumExpr a) -> NumExpr a -> NumExpr a -> Maybe a
-evalNumExprAux f n m
-    | isJust x && isJust y  = Just (f x y)
-    | otherwise             = Nothing
+evalNumExpr :: (SymTable m, Num a, Ord a) => m a -> NumExpr a -> Either a String
+evalNumExpr mem (Var x)
+    | isJust var    = Left val
+    | otherwise     = Right $ "Var '" ++ x ++ "' has no defined value"
     where
-        xM      = evalNumExpr n
-        yM      = evalNumExpr m
-        Just x  = xM
-        Just y  = yM
+        var         = value mem x
+        Just val    = var
+evalNumExpr mem (Const n)       = Left n
+evalNumExpr mem (Minus n m)     = evalNumExprAux mem (-) n m
+evalNumExpr mem (Plus n m)      = evalNumExprAux mem (+) n m
+evalNumExpr mem  (Times n m)    = evalNumExprAux mem (*) n m
+evalNumExpr mem  (Div n m)
+    | isRight xM    = xM
+    | isRight yM    = yM
+    | otherwise     = myDiv x y
+    where
+        xM      = evalNumExpr mem n
+        yM      = evalNumExpr mem m
+        Left x = xM
+        Left y = yM
+
+
+evalNumExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> a) -> NumExpr a -> NumExpr a -> Either a String
+evalNumExprAux mem f n m
+    | isRight xM    = xM
+    | isRight yM    = yM
+    | otherwise     = Left (f x y)
+    where
+        xM      = evalNumExpr mem n
+        yM      = evalNumExpr mem m
+        Left x  = xM
+        Left y  = yM
 
 
 -- Reads a numeric expression and returns the remaining string
@@ -338,8 +356,8 @@ readCommand s = fst $ readCommandSeq s
 
 -- Interpret Command Sequence
 interpretCommand :: (SymTable m, Num a, Ord a) => m a -> [a] -> Command a -> ((Either [a] String), m a, [a])
-interpretCommand mem inI (Seq [])       = (Left [], mem, inI)
-interpretCommand mem inI (Seq (x:xs)) 
+interpretCommand mem inI    (Seq [])       = (Left [], mem, inI)
+interpretCommand mem inI    (Seq (x:xs)) 
     | isRight outL  = (outL, memR, inp)
     | isRight outF  = (outF, memF, inpF)
     | otherwise     = (Left (out ++ o), memF, inpF)
@@ -355,10 +373,13 @@ interpretCommand mem (x:xs) (Input (Var n)) = (Left [], update mem n x, xs)
 interpretCommand mem xs     (Input _)       = (Right "Wrong Input command", mem, xs)
 
 -- Interpret Command Print
-interpretCommand mem i      (Print (Var x))
-    | exists mem x    = (Left [value mem x], mem, i)
-    | otherwise         = (Right $ "Variable " ++ x ++ " not initializated", mem, i)
-interpretCommand mem xs     (Print _)       = (Right "Wrong Print command", mem, xs)
+interpretCommand mem i      (Print numE)
+    | isRight varM      = (Right err, mem, i)
+    | otherwise         = (Left [val], mem, i)
+    where 
+        varM        = evalNumExpr mem numE
+        Left val    = varM
+        Right err   = varM
 
 -- Interpret Command Assign
     
