@@ -107,9 +107,9 @@ instance Show a => Show (NumExpr a) where
     
 -- Instance of Show for Command
 instance Show a => Show (Command a) where
-    show (Input x)      = "INPUT " ++ (show x) ++ ";"
-    show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
-    show (Print x)      = "PRINT " ++ (show x) ++ ";"
+    show (Input x)      = "INPUT [" ++ (show x) ++ "];"
+    show (Assign x y)   = "[" ++ (show x) ++ "] := [" ++ (show y) ++ "];"
+    show (Print x)      = "PRINT [" ++ (show x) ++ "];"
     show c              = showIdent 0 0 c
         where 
         showIdent :: Show a => Int -> Int -> Command a -> String
@@ -225,7 +225,7 @@ evalNumExpr mem  (Div n m)
         Left y = yM
 
 
-evalNumExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> a) -> NumExpr a -> NumExpr a -> Either a String
+evalNumExprAux :: (SymTable m, Num a) => m a -> (a -> a -> a) -> NumExpr a -> NumExpr a -> Either a String
 evalNumExprAux mem f n m
     | isRight xM    = xM
     | isRight yM    = yM
@@ -236,6 +236,21 @@ evalNumExprAux mem f n m
         Left x  = xM
         Left y  = yM
 
+evalBoolExpr :: (SymTable m, Num a, Ord a) => ma -> BoolExpr a -> BoolExpr a -> Either Bool String
+
+-- Evaluates a boolean expression
+evalBoolExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> Bool) -> BoolExpr a -> BoolExpr a -> Either Bool String
+evalBoolExprAux mem f num1 num2
+    | isRight n1M   = Right err1
+    | isRight n2M   = Right err2
+    | otherwise     = Left (f n1 n2)
+    where
+        n1M         = evalNumExpr mem num1
+        n2M         = evalNumExpr mem num2
+        Left n1     = n1M
+        Left n2     = n2M
+        Right err1  = n1M
+        Right err2  = n2M 
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
@@ -374,18 +389,57 @@ interpretCommand mem xs     (Input _)       = (Right "Wrong Input command", mem,
 
 -- Interpret Command Print
 interpretCommand mem i      (Print numE)
-    | isRight varM      = (Right err, mem, i)
-    | otherwise         = (Left [val], mem, i)
+    | isRight varM  = (Right err, mem, i)
+    | otherwise     = (Left [val], mem, i)
     where 
         varM        = evalNumExpr mem numE
         Left val    = varM
         Right err   = varM
 
 -- Interpret Command Assign
+interpretCommand mem i      (Assign (Var n) numE)
+    | isRight varM      = (Right err, mem, i)
+    | otherwise         = (Left [], update mem n val, i)
+    where
+        varM        = evalNumExpr mem numE
+        Left val    = varM
+        Right err   = varM
+
+-- Interpret Command If
+interpretCommand mem xs     (Cond bol ifC elC)
+    | evalBoolExpr mem bol  = interpretCommand mem xs ifC
+    | otherwise             = interpretCommand mem xs elC
+
+
+interpretProgram :: (Num a, Ord a) => [a] -> Command a -> Either [a] String
+interpretProgram i c = ret
+    where
+        -- res     = interpretCommand EmptyT i c
+        res         = interpretCommand (Mem []) i c
+        (ret, _, _) = res
+
+
+readInput :: Read a => IO [a]
+readInput =
+    do
+        l <- getLine
+        if l /= "*" 
+            then do
+                let n = read l in do 
+                    arr <- readInput
+                    return $ n:arr
+            else 
+                return []
+
+                
     
 main :: IO ()
 main = 
     do
         h <- openFile "codiProva.txt" ReadMode
         s <- hGetContents h
-        print (readCommand s :: Command Int)
+        let c = (readCommand s :: Command Int) in do
+            i <- readInput :: IO [Int]
+            print c
+            let res = interpretProgram i c in print res
+            return ()
