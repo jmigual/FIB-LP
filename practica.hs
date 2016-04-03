@@ -1,9 +1,4 @@
 import System.IO
-import Data.List.Split
-import Data.Maybe
-import Data.Either
-import Data.Either.Extra
-import Text.Read
 
 ---------------------- DATA STRUCTURES ---------------------
 
@@ -144,6 +139,57 @@ instance Show a => Show (Command a) where
 
 -------------------------- AUXILIAR FUNCTIONS -----------------------
 
+-- Returns true if it's Just
+isJust :: Maybe a -> Bool
+isJust (Just _) = True
+isJust Nothing  = False
+
+-- Returns true if is a right
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight (Left  _) = False
+
+-- Returns true if is left
+isLeft :: Either a b -> Bool
+isLeft (Right _) = False
+isLeft (Left  _) = True
+
+-- Returns the left
+fromLeft :: Either a b -> a
+fromLeft (Right _) = error "fromLeft: It's not left"
+fromLeft (Left  m) = m
+
+-- Returns the right
+fromRight :: Either a b -> b
+fromRight (Right m) = m
+fromRight (Left  _) = error "fromRight: It's not right"
+
+splitOn :: Eq a => [a] -> [a] -> [[a]]
+splitOn s1 s2 = fst $ splitOnAux s1 s2
+
+
+splitOnAux :: Eq a => [a] -> [a] -> ([[a]], Bool)
+splitOnAux _ [] = ([[]], False)
+splitOnAux xs (y:ys)
+    | b2        = (splitOn xs r, True)
+    | b         = ([y]:res, False)
+    | otherwise = case res of
+                    [[]]    -> ([[y]], False)
+                    (m:[])  -> ([y:m], False)
+                    (m:ms)  -> (((y:m):ms), False)
+    where
+        (r, b2) = subStr xs (y:ys)
+        (res,b) = splitOnAux xs ys
+
+        subStr :: Eq a => [a] -> [a] -> ([a], Bool)
+        subStr []     ys        = (ys, True)
+        subStr _      []        = ([], False)
+        subStr (x:xs) (y:ys)
+            | x == y    = (r, True && b)
+            | otherwise = (y:ys, False)
+            where
+                (r, b)   = subStr xs ys
+
 -- Separates the next word from the passed String
 dropNextWord ::  String -> (String, String)
 dropNextWord s  = (w, d)
@@ -163,11 +209,8 @@ dropNextLine s = (b, e)
 -- creates a Var "name", otherwise creates a const "Number")
 readStringNum :: Read a => String -> NumExpr a
 readStringNum s
-    | isJust num    = Const n
+    | isNumber s    = Const $ read s
     | otherwise     = Var s
-    where 
-        num     = readMaybe s
-        Just n  = num
 
 -- Concatenates constructors
 concatCons :: Read a => (a -> a -> a) -> [a] -> a
@@ -199,6 +242,9 @@ myDiv a b
             | n > 0 && m < 0    = (-res)
             | n < 0 && m > 0    = (-res)
             | otherwise         = res
+
+isNumber :: String -> Bool
+isNumber s = foldl (&&) True (map (\x -> '0' <= x && x <= '9' || x == '.') s)
 
 ------------------------- MAIN CODE --------------------------
 
@@ -235,6 +281,7 @@ evalNumExprAux mem f n m
         Left x  = xM
         Left y  = yM
 
+-- Evaluates a boolean expression
 evalBoolExpr :: (SymTable m, Num a, Ord a) => m a -> BoolExpr a -> Either Bool String
 evalBoolExpr mem (Gt  n m)  = evalBoolExprAux  mem (>)  n m
 evalBoolExpr mem (Eq  n m)  = evalBoolExprAux  mem (==) n m
@@ -246,6 +293,7 @@ evalBoolExpr mem (NOT n)
     where
         bM          = evalBoolExpr mem n
 
+-- Evaluates two boolean expressions and applies the desired boolean function
 evalBoolExprAuxB :: (SymTable m, Num a, Ord a) => m a -> (Bool -> Bool -> Bool) -> BoolExpr a -> BoolExpr a -> Either Bool String
 evalBoolExprAuxB mem f bE1 bE2
     | isRight b1M   = Right (fromRight b1M)
@@ -255,7 +303,7 @@ evalBoolExprAuxB mem f bE1 bE2
         b1M         = evalBoolExpr mem bE1
         b2M         = evalBoolExpr mem bE2
 
--- Evaluates a boolean expression with the desired function
+-- Evaluates two num expressions and applies the desired function to the numbers to return a boolean
 evalBoolExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> Bool) -> NumExpr a -> NumExpr a -> Either Bool String
 evalBoolExprAux mem f num1 num2
     | isRight n1M   = Right (fromRight n1M)
@@ -442,6 +490,7 @@ interpretCommand mem inp     (Loop bol com)
         Left o          = r
         Left o2         = r2
 
+-- Interpretes a program assigning the desired SymTable
 interpretProgram :: (Num a, Ord a) => [a] -> Command a -> Either [a] String
 interpretProgram i c = ret
     where
@@ -450,6 +499,33 @@ interpretProgram i c = ret
         (ret, _, _) = res
 
 
+expand :: Command a -> Command a
+expand (Seq [])     = Seq []
+expand (Seq (x:xs)) = Seq $ (expand x):sE
+    where
+        Seq sE = expand $ Seq xs
+expand (Loop b xs)  = Loop b (expand xs)
+expand (Cond (AND b1 b2) i e) = expand (Cond b1 (Seq [Cond b2 i e]) e)
+expand (Cond (OR  b1 b2) i e) = expand (Cond b1 i (Seq [Cond b2 i e]))
+expand (Cond boolExpr    i e) = Cond boolExpr (expand i) (expand e)
+expand com                    = com
+
+simplify :: Command a -> Command a
+simplify (Seq [])                = Seq []
+simplify (Seq ((Input _):xs))    = simplify (Seq xs)
+simplify (Seq ((Print _):xs))    = simplify (Seq xs)
+simplify (Seq ((Assign _ _):xs)) = simplify (Seq xs)
+simplify (Seq (x:xs))            = Seq $ (simplify x):ms
+    where
+        Seq ms = (simplify (Seq xs))
+simplify (Cond b i e)            = Cond b (simplify i) (simplify e)
+simplify (Loop b c)              = Loop b (simplify c)
+simplify (Input _)               = Seq []
+simplify (Print _)               = Seq []
+simplify (Assign _ _)            = Seq []
+
+
+-- Reads input and parses it to the type a until the * symbol is found
 readInput :: Read a => IO [a]
 readInput =
     do
@@ -467,8 +543,14 @@ main =
     do
         h <- openFile "codiProva.txt" ReadMode
         s <- hGetContents h
-        let c = (readCommand s :: Command Int) in do
-            i <- readInput :: IO [Int]
+        let c = (readCommand s :: Command Integer) in do
+            i <- readInput :: IO [Integer]
             print c
             let res = interpretProgram i c in print res
+            putStrLn "\nExpanded: "
+            print $ expand c
+            putStrLn "\nSimplified: "
+            print $ simplify c
+            putStrLn "\nBoth: "
+            print $ simplify (expand c)
             return ()
