@@ -2,6 +2,7 @@ import System.IO
 import Data.List.Split
 import Data.Maybe
 import Data.Either
+import Data.Either.Extra
 import Text.Read
 
 ---------------------- DATA STRUCTURES ---------------------
@@ -98,7 +99,7 @@ instance Show a => Show (BoolExpr a) where
 
 -- Instance of Show for NumExpr
 instance Show a => Show (NumExpr a) where
-    show (Var s)        = '"':(s ++ "\"")
+    show (Var s)        = ('"':s) ++ "\""
     show (Const a)      = show a
     show (Plus a b)     = (show a) ++ " + " ++ (show b)
     show (Minus a b)    = (show a) ++ " - " ++ (show b)
@@ -107,9 +108,9 @@ instance Show a => Show (NumExpr a) where
     
 -- Instance of Show for Command
 instance Show a => Show (Command a) where
-    show (Input x)      = "INPUT [" ++ (show x) ++ "];"
-    show (Assign x y)   = "[" ++ (show x) ++ "] := [" ++ (show y) ++ "];"
-    show (Print x)      = "PRINT [" ++ (show x) ++ "];"
+    show (Input x)      = "INPUT " ++ (show x) ++ ";"
+    show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
+    show (Print x)      = "PRINT " ++ (show x) ++ ";"
     show c              = showIdent 0 0 c
         where 
         showIdent :: Show a => Int -> Int -> Command a -> String
@@ -217,15 +218,13 @@ evalNumExpr mem  (Times n m)    = evalNumExprAux mem (*) n m
 evalNumExpr mem  (Div n m)
     | isRight xM    = xM
     | isRight yM    = yM
-    | otherwise     = myDiv x y
+    | otherwise     = myDiv (fromLeft xM) (fromLeft yM)
     where
         xM      = evalNumExpr mem n
         yM      = evalNumExpr mem m
-        Left x = xM
-        Left y = yM
 
 
-evalNumExprAux :: (SymTable m, Num a) => m a -> (a -> a -> a) -> NumExpr a -> NumExpr a -> Either a String
+evalNumExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> a) -> NumExpr a -> NumExpr a -> Either a String
 evalNumExprAux mem f n m
     | isRight xM    = xM
     | isRight yM    = yM
@@ -236,21 +235,35 @@ evalNumExprAux mem f n m
         Left x  = xM
         Left y  = yM
 
-evalBoolExpr :: (SymTable m, Num a, Ord a) => ma -> BoolExpr a -> BoolExpr a -> Either Bool String
+evalBoolExpr :: (SymTable m, Num a, Ord a) => m a -> BoolExpr a -> Either Bool String
+evalBoolExpr mem (Gt  n m)  = evalBoolExprAux  mem (>)  n m
+evalBoolExpr mem (Eq  n m)  = evalBoolExprAux  mem (==) n m
+evalBoolExpr mem (AND n m)  = evalBoolExprAuxB mem (&&) n m
+evalBoolExpr mem (OR  n m)  = evalBoolExprAuxB mem (||) n m
+evalBoolExpr mem (NOT n)
+    | isRight bM    = Right (fromRight bM)
+    | otherwise     = Left (not $ fromLeft bM)
+    where
+        bM          = evalBoolExpr mem n
 
--- Evaluates a boolean expression
-evalBoolExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> Bool) -> BoolExpr a -> BoolExpr a -> Either Bool String
+evalBoolExprAuxB :: (SymTable m, Num a, Ord a) => m a -> (Bool -> Bool -> Bool) -> BoolExpr a -> BoolExpr a -> Either Bool String
+evalBoolExprAuxB mem f bE1 bE2
+    | isRight b1M   = Right (fromRight b1M)
+    | isRight b2M   = Right (fromRight b2M)
+    | otherwise     = Left (f (fromLeft b1M) (fromLeft b2M))
+    where
+        b1M         = evalBoolExpr mem bE1
+        b2M         = evalBoolExpr mem bE2
+
+-- Evaluates a boolean expression with the desired function
+evalBoolExprAux :: (SymTable m, Num a, Ord a) => m a -> (a -> a -> Bool) -> NumExpr a -> NumExpr a -> Either Bool String
 evalBoolExprAux mem f num1 num2
-    | isRight n1M   = Right err1
-    | isRight n2M   = Right err2
-    | otherwise     = Left (f n1 n2)
+    | isRight n1M   = Right (fromRight n1M)
+    | isRight n2M   = Right (fromRight n2M)
+    | otherwise     = Left (f (fromLeft n1M) (fromLeft n2M))
     where
         n1M         = evalNumExpr mem num1
         n2M         = evalNumExpr mem num2
-        Left n1     = n1M
-        Left n2     = n2M
-        Right err1  = n1M
-        Right err2  = n2M 
 
 -- Reads a numeric expression and returns the remaining string
 readNumExpr :: Read a => String -> (NumExpr a, String)
@@ -407,9 +420,27 @@ interpretCommand mem i      (Assign (Var n) numE)
 
 -- Interpret Command If
 interpretCommand mem xs     (Cond bol ifC elC)
-    | evalBoolExpr mem bol  = interpretCommand mem xs ifC
-    | otherwise             = interpretCommand mem xs elC
+    | isRight bM    = (Right (fromRight bM), mem, xs)
+    | fromLeft bM   = interpretCommand mem xs ifC
+    | otherwise     = interpretCommand mem xs elC
+    where
+        bM      = evalBoolExpr mem bol
 
+-- Interpret Command Loop
+interpretCommand mem inp     (Loop bol com)
+    | isRight bM    = (Right (fromRight bM), mem, inp)
+    | fromLeft bM   = if isRight r 
+                        then (r, m, i)
+                        else if isRight r2
+                            then (r2, m2, i2)
+                            else (Left $ o ++ o2, m2, i2)
+    | otherwise     = (Left [], mem, inp)
+    where
+        bM              = evalBoolExpr mem bol
+        (r, m, i)       = interpretCommand mem inp com
+        (r2, m2, i2)    = interpretCommand m i (Loop bol com)
+        Left o          = r
+        Left o2         = r2
 
 interpretProgram :: (Num a, Ord a) => [a] -> Command a -> Either [a] String
 interpretProgram i c = ret
@@ -431,8 +462,6 @@ readInput =
             else 
                 return []
 
-                
-    
 main :: IO ()
 main = 
     do
