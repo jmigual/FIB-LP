@@ -520,25 +520,3 @@ simplify (Loop b c)              = Loop b (simplify c)
 simplify (Input _)               = Seq []
 simplify (Print _)               = Seq []
 simplify (Assign _ _)            = Seq []
-
-
--- Reads input and parses it to the type a until the * symbol is found
-readInput :: Read a => IO [a]
-readInput =
-    do
-        l <- getLine
-        if l /= "*" 
-            then let n = read l in do 
-                    arr <- readInput
-                    return $ n:arr
-            else 
-                return []
-
-main :: IO ()
-main = 
-    do
-        let c = readCommand "INPUT X;" :: Command Int
-        let p = interpretProgram [3] c
-        print p
-        print $ expand $ simplify c
-        return ()
