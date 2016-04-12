@@ -1,7 +1,4 @@
-import System.IO
-
 ---------------------- DATA STRUCTURES ---------------------
-
 ------ INTERPRET --------
 
 class SymTable m where
@@ -14,7 +11,7 @@ data Memory a = Mem [(String, a)]
     deriving (Show)
 
 instance SymTable Memory where
-    update (Mem []) name val  = Mem $ (name, val):[]
+    update (Mem []) name val  = Mem [(name, val)]
     update (Mem ((s, n):xs)) name val
         | s == name     = Mem $ (s, val):xs
         | otherwise     = Mem $ (s, n):xss
@@ -28,7 +25,7 @@ instance SymTable Memory where
 
     start = Mem []
 
-    exists (Mem []) n      = False
+    exists (Mem []) _   = False
     exists (Mem ((x,_):xs)) n
         | x == n        = True
         | otherwise     = exists (Mem xs) n
@@ -54,7 +51,7 @@ instance SymTable MemoryT where
     exists EmptyT _    = False
     exists (Node n _ l r) name
         | n == name     = True
-        | otherwise     = (exists l name) || (exists r name)
+        | otherwise     = exists l name || exists r name
 
 --------- READ COMMAND ---------
 
@@ -86,56 +83,56 @@ data Command a =
 
 -- Instance of Show for BoolExpr
 instance Show a => Show (BoolExpr a) where
-    show (NOT a)    = "NOT " ++ (show a)
-    show (AND a b)  = (show a) ++ " AND " ++ (show b)
-    show (OR a b)   = (show a) ++ " OR " ++ (show b)
-    show (Gt a b)   = (show a) ++ " > " ++ (show b)
-    show (Eq a b)   = (show a) ++ " = " ++ (show b)
+    show (NOT a)    = "NOT " ++ show a
+    show (AND a b)  = show a ++ " AND " ++ show b
+    show (OR a b)   = show a ++ " OR " ++ show b
+    show (Gt a b)   = show a ++ " > " ++ show b
+    show (Eq a b)   = show a ++ " = " ++ show b
 
 -- Instance of Show for NumExpr
 instance Show a => Show (NumExpr a) where
     show (Var s)        = ('"':s) ++ "\""
     show (Const a)      = show a
-    show (Plus a b)     = (show a) ++ " + " ++ (show b)
-    show (Minus a b)    = (show a) ++ " - " ++ (show b)
-    show (Times a b)    = (show a) ++ " * " ++ (show b)
-    show (Div a b)      = (show a) ++ " / " ++ (show b) 
+    show (Plus a b)     = show a ++ " + " ++ show b
+    show (Minus a b)    = show a ++ " - " ++ show b
+    show (Times a b)    = show a ++ " * " ++ show b
+    show (Div a b)      = show a ++ " / " ++ show b 
     
 -- Instance of Show for Command
 instance Show a => Show (Command a) where
-    show (Input x)      = "INPUT " ++ (show x) ++ ";"
-    show (Assign x y)   = (show x) ++ " := " ++ (show y) ++ ";"
-    show (Print x)      = "PRINT " ++ (show x) ++ ";"
+    show (Input x)      = "INPUT " ++ show x ++ ";"
+    show (Assign x y)   = show x ++ " := " ++ show y ++ ";"
+    show (Print x)      = "PRINT " ++ show x ++ ";"
     show c              = showIdent 0 0 c
         where 
         showIdent :: Show a => Int -> Int -> Command a -> String
         showIdent _ _ (Seq [])  = []
-        showIdent n i (Seq (x:[]))
+        showIdent n i (Seq [x])
             | i == 0        = showIdent n i x
-            | otherwise     = ' ':(showIdent n (i-1) (Seq (x:[])))
+            | otherwise     = ' ':showIdent n (i-1) (Seq [x])
         showIdent n i (Seq (x:xs)) 
-            | i == 0        = (showIdent n i x) ++ '\n':(showIdent n n (Seq xs))
-            | otherwise     = ' ':(showIdent n (i-1) (Seq (x:xs)))
-        showIdent n i (Cond b ii ee) = "IF " ++ (show b) ++ " THEN\n" ++ showIf ++ elseS ++ showEl ++ endS
+            | i == 0        = showIdent n i x ++ '\n':showIdent n n (Seq xs)
+            | otherwise     = ' ':showIdent n (i-1) (Seq (x:xs))
+        showIdent n _ (Cond b ii ee) = "IF " ++ show b ++ " THEN\n" ++ showIf ++ elseS ++ showEl ++ endS
             where 
                 showIf      = showIdent (n+2) (n+2) ii
-                elseS       = '\n':(addSpaces n "ELSE\n")
+                elseS       = '\n':addSpaces n "ELSE\n"
                 showEl      = showIdent (n+2) (n+2) ee
-                endS        = '\n':(addSpaces n "END")
-        showIdent n i (Loop b l) = "WHILE " ++ (show b) ++ doS ++ loop ++ endS
+                endS        = '\n':addSpaces n "END"
+        showIdent n _ (Loop b l) = "WHILE " ++ show b ++ doS ++ loop ++ endS
             where
-                doS         = '\n':(addSpaces n "DO\n")
+                doS         = '\n':addSpaces n "DO\n"
                 loop        = showIdent (n+2) (n+2) l
-                endS        = '\n':(addSpaces n "END")
-        showIdent n i c
-            | i == 0        = show c
-            | otherwise     = ' ':(showIdent n (i-1) c)
+                endS        = '\n':addSpaces n "END"
+        showIdent n i c2
+            | i == 0        = show c2
+            | otherwise     = ' ':showIdent n (i-1) c2
 
         -- Adds n spaces
         addSpaces :: Int -> String -> String
         addSpaces n s
             | n == 0        = s
-            | otherwise     = ' ':(addSpaces (n-1) s)
+            | otherwise     = ' ':addSpaces (n-1) s
 
 -------------------------- AUXILIAR FUNCTIONS -----------------------
 
@@ -174,21 +171,20 @@ splitOnAux xs (y:ys)
     | b2        = (splitOn xs r, True)
     | b         = ([y]:res, False)
     | otherwise = case res of
+                    []      -> ([[y]], False)
                     [[]]    -> ([[y]], False)
-                    (m:[])  -> ([y:m], False)
-                    (m:ms)  -> (((y:m):ms), False)
+                    [m]     -> ([y:m], False)
+                    (m:ms)  -> ((y:m):ms, False)
     where
         (r, b2) = subStr xs (y:ys)
         (res,b) = splitOnAux xs ys
 
         subStr :: Eq a => [a] -> [a] -> ([a], Bool)
-        subStr []     ys        = (ys, True)
+        subStr []     yl        = (yl, True)
         subStr _      []        = ([], False)
-        subStr (x:xs) (y:ys)
-            | x == y    = (r, True && b)
-            | otherwise = (y:ys, False)
-            where
-                (r, b)   = subStr xs ys
+        subStr (x:xl) (yz:yl)
+            | x == yz    = subStr xl yl
+            | otherwise = (yz:yl, False)
 
 -- Separates the next word from the passed String
 dropNextWord ::  String -> (String, String)
@@ -215,7 +211,7 @@ readStringNum s
 -- Concatenates constructors
 concatCons :: Read a => (a -> a -> a) -> [a] -> a
 concatCons _ []     = error "concatCons: Empty List"
-concatCons _ (x:[]) = x
+concatCons _ [x]    = x
 concatCons f (x:xs) = f x (concatCons f xs)
 
 -- Reads a recusive expression, pass the constructor, the recursive function and the split string
@@ -229,7 +225,7 @@ readRecExpr f c split s = concatCons c mapped
 myDiv :: (Num a, Ord a) => a -> a -> Either a String
 myDiv a b
     | b == 0                        = Right "div: Error, division by 0"
-    | (x >= y) && (isLeft rDivM)    = Left $ getSign a b (1 + rDiv)
+    | (x >= y) && isLeft rDivM      = Left $ getSign a b (1 + rDiv)
     | otherwise = Left 0
     where 
         x           = abs a
@@ -239,12 +235,12 @@ myDiv a b
         getSign :: (Num a, Ord a) => a -> a -> a -> a
         getSign n m res
             | n > 0 && m > 0    = res
-            | n > 0 && m < 0    = (-res)
-            | n < 0 && m > 0    = (-res)
+            | n > 0 && m < 0    = -res
+            | n < 0 && m > 0    = -res
             | otherwise         = res
 
 isNumber :: String -> Bool
-isNumber s = foldl (&&) True (map (\x -> '0' <= x && x <= '9' || x == '.') s)
+isNumber = all (\x -> '0' <= x && x <= '9' || x == '.')
 
 ------------------------- MAIN CODE --------------------------
 
@@ -257,7 +253,7 @@ evalNumExpr mem (Var x)
     where
         var         = value mem x
         Just val    = var
-evalNumExpr mem (Const n)       = Left n
+evalNumExpr _   (Const n)       = Left n
 evalNumExpr mem (Minus n m)     = evalNumExprAux mem (-) n m
 evalNumExpr mem (Plus n m)      = evalNumExprAux mem (+) n m
 evalNumExpr mem  (Times n m)    = evalNumExprAux mem (*) n m
@@ -318,16 +314,16 @@ readNumExpr :: Read a => String -> (NumExpr a, String)
 readNumExpr s = (plus, r)
     where 
         (str, r)    = dropNextLine s
-        times       = \x -> readRecExpr readStringNum Times " * " x
-        divs        = \y -> readRecExpr times Div " / " y
-        minus       = \z -> readRecExpr divs Minus " - " z
+        times       = readRecExpr readStringNum Times " * " 
+        divs        = readRecExpr times Div " / " 
+        minus       = readRecExpr divs Minus " - " 
         plus        = readRecExpr minus Plus " + " str
 
 -- Takes items until a command from the list is found
 takeCommand :: String -> [String] -> (String, String) 
 takeCommand [] _     = ("", "")
 takeCommand s xs
-    | elem com xs    = ("", s)
+    | com `elem` xs    = ("", s)
     | expr == ""        = (com, cuar)
     | otherwise         = (com ++ " " ++ expr, cuar)
     where 
@@ -359,7 +355,7 @@ readBool :: Read a => String -> (BoolExpr a, String)
 readBool s = (ors, dirty)
     where
         (expr, dirty)   = takeCommand s ["THEN", "DO"]
-        ands            = \x -> readRecExpr readBoolNot AND " AND " x
+        ands            = readRecExpr readBoolNot AND " AND "
         ors             = readRecExpr ands OR " OR " expr
 
 -- Creates a PRINT command creating also a NumExpr
@@ -431,7 +427,7 @@ readCommand :: Read a => String -> Command a
 readCommand s = fst $ readCommandSeq s
 
 -- Interpret Command Sequence
-interpretCommand :: (SymTable m, Num a, Ord a) => m a -> [a] -> Command a -> ((Either [a] String), m a, [a])
+interpretCommand :: (SymTable m, Num a, Ord a) => m a -> [a] -> Command a -> (Either [a] String, m a, [a])
 interpretCommand mem inI    (Seq [])       = (Left [], mem, inI)
 interpretCommand mem inI    (Seq (x:xs)) 
     | isRight outL  = (outL, memR, inp)
@@ -465,6 +461,7 @@ interpretCommand mem i      (Assign (Var n) numE)
         varM        = evalNumExpr mem numE
         Left val    = varM
         Right err   = varM
+interpretCommand mem _      (Assign _ _) = (Right "Assign, wrong variable",mem, [])
 
 -- Interpret Command If
 interpretCommand mem xs     (Cond bol ifC elC)
@@ -501,7 +498,7 @@ interpretProgram i c = ret
 
 expand :: Command a -> Command a
 expand (Seq [])     = Seq []
-expand (Seq (x:xs)) = Seq $ (expand x):sE
+expand (Seq (x:xs)) = Seq $ expand x :sE
     where
         Seq sE = expand $ Seq xs
 expand (Loop b xs)  = Loop b (expand xs)
@@ -512,12 +509,12 @@ expand com                    = com
 
 simplify :: Command a -> Command a
 simplify (Seq [])                = Seq []
-simplify (Seq ((Input _):xs))    = simplify (Seq xs)
-simplify (Seq ((Print _):xs))    = simplify (Seq xs)
-simplify (Seq ((Assign _ _):xs)) = simplify (Seq xs)
-simplify (Seq (x:xs))            = Seq $ (simplify x):ms
+simplify (Seq (Input _:xs))    = simplify (Seq xs)
+simplify (Seq (Print _:xs))    = simplify (Seq xs)
+simplify (Seq (Assign _ _:xs)) = simplify (Seq xs)
+simplify (Seq (x:xs))            = Seq $ simplify x:ms
     where
-        Seq ms = (simplify (Seq xs))
+        Seq ms = simplify (Seq xs)
 simplify (Cond b i e)            = Cond b (simplify i) (simplify e)
 simplify (Loop b c)              = Loop b (simplify c)
 simplify (Input _)               = Seq []
@@ -531,8 +528,7 @@ readInput =
     do
         l <- getLine
         if l /= "*" 
-            then do
-                let n = read l in do 
+            then let n = read l in do 
                     arr <- readInput
                     return $ n:arr
             else 
@@ -541,16 +537,8 @@ readInput =
 main :: IO ()
 main = 
     do
-        h <- openFile "codiProva.txt" ReadMode
-        s <- hGetContents h
-        let c = (readCommand s :: Command Integer) in do
-            i <- readInput :: IO [Integer]
-            print c
-            let res = interpretProgram i c in print res
-            putStrLn "\nExpanded: "
-            print $ expand c
-            putStrLn "\nSimplified: "
-            print $ simplify c
-            putStrLn "\nBoth: "
-            print $ simplify (expand c)
-            return ()
+        let c = readCommand "INPUT X;" :: Command Int
+        let p = interpretProgram [3] c
+        print p
+        print $ expand $ simplify c
+        return ()
