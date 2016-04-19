@@ -108,20 +108,46 @@ void ASTPrint(AST *a)
 
 
 bool calc_difference(AST *a1, AST *a2) {
-
+  if (a1 == NULL || a2 == NULL) return false;
+  string id = a1->kind;
+  if (id == "|" || id == "+" || id == "#" || id == ";") {
+    if (a1->kind == a2->kind) 
+      return (calc_difference(child(a1,0), child(a2,0)) || 
+              calc_difference(child(a1,1), child(a2,1)));
+    else return true;
+  }  
+  return false;
 }
 
 int calc_critical(AST *a) {
-  
-  
+  if (a == NULL) return 0;
+  if (a->kind == "+" || a->kind == "|" || a->kind == "#") return max(calc_critical(child(a,0)), calc_critical(child(a,1)));
+  if (a->kind == ";") return calc_critical(child(a, 0)) + calc_critical(child(a,1));
+  return 1;
 }
 
 int critical(string role) {
-
+  // Take Roles list
+  AST *a = child(child(root, 0), 0);
+  while (a != NULL && a->kind != role) a = a->right;
+  if (a != NULL && a->kind == role) return calc_critical(child(a, 0));
+  return -1;
 }
 
 bool difference(string role1, string role2) {
+  AST *a, *a1, *a2;
   
+  a = child(child(root, 0), 0);
+  while (a != NULL && a->kind != role1) a = a->right;
+  if (a == NULL) return false;
+  a1 = child(a, 0);
+  
+  a = child(child(root, 0), 0);
+  while (a != NULL && a->kind != role2) a = a->right;
+  if (a == NULL) return false;
+  a2 = child(a, 0);
+  
+  return calc_difference(a1, a2);
 }
 
 void recorre(AST *a) {
@@ -130,7 +156,7 @@ void recorre(AST *a) {
       cout << "Critical " << child(a,0)->kind << " : " << critical(child(a,0)->kind) << endl;
     }
     else if (a->kind == "difference") {
-      cout << "Difference: " << child(a,0)->kind << " and " << child(a,1)->kind<< " : " << difference(child(a,0)->kind,child(a,1)->kind) << endl;
+      cout << "Difference: " << child(a,0)->kind << " and " << child(a,1)->kind<< " : " << boolalpha << difference(child(a,0)->kind,child(a,1)->kind) << endl;
     }
     a=a->right;
   }  

@@ -34,7 +34,7 @@ if [ $? == "1" ]; then
 fi
 
 echo 3 of 3
-err=$( { g++ -o $file.exe $file.c scan.c err.c; } 2>&1)
+err=$( { g++ -Wno-write-strings -o $file.exe $file.c scan.c err.c; } 2>&1)
 if [ $? == "1" ]; then
   echo -e "\nCompilation error"
   echo -e "Error:\n$err" | tee

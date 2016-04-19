@@ -27,6 +27,3 @@ difference Sales Accounting
 difference Sales Sales
 correctfile F
 correctfile Y
-
-
-
