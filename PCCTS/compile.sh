@@ -26,7 +26,7 @@ if [ $ret == "1" -o $? == "0"  ]; then
 fi
 
 echo 2 of 3
-err=$( { dlg parser.dlg scan.c; } 2>&1)
+err=$( { dlg -ci parser.dlg scan.c; } 2>&1)
 if [ $? == "1" ]; then
   echo -e "\ndlg parsing error"
   echo -e "Error:\n$err" | tee
@@ -34,11 +34,11 @@ if [ $? == "1" ]; then
 fi
 
 echo 3 of 3
-err=$( { g++ -o $file $file.c scan.c err.c; } 2>&1)
+err=$( { g++ -o $file.exe $file.c scan.c err.c; } 2>&1)
 if [ $? == "1" ]; then
   echo -e "\nCompilation error"
   echo -e "Error:\n$err" | tee
   exit 1
 fi
 echo -e "Executing:\n"
-./$file
+./$file.exe
