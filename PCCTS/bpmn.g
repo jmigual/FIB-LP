@@ -112,7 +112,8 @@ bool calc_difference(AST *a1, AST *a2) {
 }
 
 int calc_critical(AST *a) {
-
+  
+  
 }
 
 int critical(string role) {
