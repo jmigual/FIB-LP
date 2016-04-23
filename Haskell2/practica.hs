@@ -3,7 +3,7 @@ data Line = L Point Point deriving(Show, Read, Eq)
 data Board = B Int [Line] deriving(Read)
 
 instance Show Board where
-    show (B n1 b1) = (showH n1 0) ++ showB (B n1 b1) 0 0 0
+    show (B n1 b1) = showH n1 0 ++ showB (B n1 b1) 0 0 0
         where
             showH n i
                 | i < n     = "  " ++ show i ++ showH n (i+1)
@@ -18,12 +18,10 @@ instance Show Board where
                 where 
                     l0 = L (P i j) (P i (j+1))
                     l1 = L (P i j) (P (i+1) j)
-                    i2 = if even l then i else (i+1)
+                    i2 = if even l then i else i+1
                     char0 = if existsL b l0 then "--" else "  "
                     char1 = if existsL b l1 then "|" else " "
                     continue = showB (B n b) i (j+1) l
-
-class Player 
 
 isValidLine:: Int -> Line -> Bool
 isValidLine n (L (P x1 y1) (P x2 y2)) = len && bet
@@ -37,13 +35,25 @@ isValidMove (B n xs) l1 = existsL xs l1 && isValidLine n l1
 existsL:: [Line] -> Line -> Bool
 existsL [] _    = False
 existsL (lx:xs) ly
-	| lx == ly	= True
-	| otherwise	= existsL xs ly
+    | lx == ly  = True
+    | otherwise = existsL xs ly
+ 
+readLine:: IO Line
+readLine = do
+    putStr "Enter first  coordinates (row column):"
+    line1 <- getLine
+    map (\x->read x::Int) (words line1)
+    putStr "Enter second coordinates (row column):"
+    line2 <- getLine
+    map (\x->read x::Int) (words line2)
 
-gameLoop:: Board -> Int -> Int IO ()
-gameLoop 
+
+gameLoop:: Board -> Int -> Int -> IO ()
+gameLoop b n m =
+
+    gameLoop b n m
 
 main:: IO ()
 main = do
-	putStr "Introdueix el tamany del tauler: "
-	return ()
+    putStr "Introdueix el tamany del tauler: "
+    return ()
