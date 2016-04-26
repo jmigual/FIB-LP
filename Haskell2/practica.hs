@@ -26,6 +26,13 @@ instance Show Board where
                     char1 = if existsL b l1 then "|" else " "
                     continue = showB (B n b) i (j+1) l
 
+toDown :: String -> String
+toDown [] = []
+toDown (x:xs) 
+  | x < 'Z' && x > 'A' = (toEnum((fromEnum x) - (fromEnum 'A') + (fromEnum 'a'))):toDown xs
+  | otherwise = x:toDown xs
+  
+                    
 isHorizontal :: Line -> Bool
 isHorizontal (L (P x1 _) (P x2 _)) = x1 == x2
 
@@ -48,18 +55,15 @@ existsL (lx:xs) ly
     | otherwise = existsL xs ly
 
 boxH :: Board -> Line -> Int -> Bool
-boxH b (L (P x1 y1) (P x2 y2)) x0 = 
+boxH (B _ xs) (L (P x1 y1) (P x2 y2)) x0 = 
   e xs (L (P x0 y1) (P x0 y2)) && e xs (L (P x1 y1) (P x0 y1)) && e xs (L (P x1 y2) (P x0 y2))
-  where 
-    e = existsL
-    (B _ xs) = b
+  where e = existsL
         
 boxV :: Board -> Line -> Int -> Bool
-boxV b (L (P x1 y1) (P x2 y2)) y0 =
+boxV (B _ xs) (L (P x1 y1) (P x2 y2)) y0 =
   e xs (L (P x1 y0) (P x2 y0)) && e xs (L (P x1 y1) (P x1 y0)) && e xs (L (P x2 y1) (P x2 y0))
-  where 
-    e = existsL
-    (B _ xs) = b
+  where e = existsL
+    
         
 getBoxesH :: Board -> Line -> Int
 getBoxesH b l
@@ -117,12 +121,19 @@ isGameFinished :: Board -> Bool
 isGameFinished (B n xs) = (length xs) == (2*n0*(n0+1)) where n0 = n-1
 
 finishGame :: Int -> Int -> IO ()
-finishGame 
+finishGame n m
   | n > m       = do { putStrLn "Player 1" ; return () }
-  | otherwise   = do { putStrLn "Player 2" ; return() }
+  | otherwise   = do { putStrLn "Player 2" ; return () }
+                       
 
-gameLoop:: Board -> Int -> Int -> IO ()
-gameLoop b n m = do
+getPlayer :: String -> (Board -> IO Line)
+getPlayer s
+  | s0 == "cpu" || s0 == "c" = readLine --Change to CPU function
+  | otherwise = readLine
+  where s0 = toDown s
+
+gameLoop:: (Board -> IO Line) -> (Board -> IO Line) -> Board -> Int -> Int -> IO ()
+gameLoop p1 p2 b n m = do
   putStrLn "Score"
   putStrLn ("Player 1: " ++ (show n))
   putStrLn ("Player 2: " ++ (show m))
@@ -130,7 +141,7 @@ gameLoop b n m = do
   print b
   
   putStrLn "Player 1 Move"
-  (b1, n1) <- doMovement b n readLine
+  (b1, n1) <- doMovement b n p1
   print b1
   
   if isGameFinished b1
@@ -140,7 +151,7 @@ gameLoop b n m = do
      else do
   
   putStrLn "Player 2 Move"
-  (b2, m1) <- doMovement b1 m readLine
+  (b2, m1) <- doMovement b1 m p2
   
   if isGameFinished b2
     then do 
@@ -152,11 +163,15 @@ gameLoop b n m = do
       
   putStrLn ""
   putStrLn "--------------------"
-  gameLoop b2 n1 m1
-
+  gameLoop p1 p2 b2 n1 m1
+  
 main:: IO ()
 main = do
-    putStrLn "Introdueix el tamany del tauler: "
+    putStrLn "Choose the game mode for player1 [human|CPU]"
+    line1 <- getLine
+    putStrLn "Choose the game mode for player2 [human|CPU]"
+    line2 <- getLine
+    putStrLn "Choose the size of the board: "
     line <- getLine 
-    gameLoop (B ((read line :: Int) + 1) []) 0 0
+    gameLoop readLine readLine (B ((read line :: Int) + 1) []) 0 0
     return ()
