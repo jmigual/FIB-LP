@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# encoding=utf-8
 
 import sys
 import csv
@@ -147,13 +148,14 @@ f = open('restaurants.rdf', 'rb') # obre l'arxiu
 rdfSource = f.read()                            
 f.close()
 
+print "Parsing elements wait a moment please"
 
 parser = MHTMLParser()
 parser.feed(rdfSource)
 
 csvfile = open('restaurants.csv', 'w')
 writer = csv.writer(csvfile, delimiter='\t')
-writer.writerow(["NOM", "ADRECA", "DISTRICTE", "C. P.", "POBLACIO", "PAIS", "Telefon 1", "Telefon 2", "WEB", "E-MAIL", "INFO EXTRA 1", "INFO EXTRA 2", "INFO EXTRA 3" ])
+writer.writerow(["NOM", "ADREÇA", "DISTRICTE", "C. P.", "POBLACIÓ", "PAÍS", "Telèfon 1", "Telèfon 2", "WEB", "E-MAIL", "LATITUD", "LONGITUD", "INFO EXTRA 1", "INFO EXTRA 2", "INFO EXTRA 3" ])
 print len(allrest), "elements found"
 
 j = 1
@@ -169,16 +171,18 @@ for r in allrest:
   res.append(r.address.country)
   
   i = 0
-  for t in r.telfs:
-    res.append(t)
+  while i < len(r.telfs) and i < 2:
+    res.append(r.telfs[i])
     i += 1
     
-  while i > 0:
+  while i < 2:
     res.append("")
-    i -= 1
+    i += 1
   
   res.append(r.web)
   res.append(r.email)
+  res.append(r.location.latitude)
+  res.append(r.location.longitude)
   
   if len(r.telfs) > 2:
     i = 2
