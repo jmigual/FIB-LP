@@ -1,9 +1,18 @@
 data Point = P Int Int deriving(Show, Read, Eq)
 data Line = L Point Point deriving(Show, Read)
 data Board = B Int [Line] deriving(Read)
+data Orientation = Horizontal | Vertical | Both deriving(Show, Read)
 
 instance Eq Line where
   (==) (L p1 q1) (L p2 q2) = (p1 == p2 && q1 == q2) || (p1 == q2 && q1 == p2)
+
+instance Eq Orientation where
+  (==) Horizontal Horizontal  = True
+  (==) Horizontal Vertical    = False
+  (==) Vertical   Horizontal  = False
+  (==) Vertical   Vertical    = True
+  (==) Both       _           = True
+  (==) _          Both        = True
 
 instance Show Board where
     show (B n1 b1) = showH n1 0 ++ showB (B n1 b1) 0 0 0
@@ -25,6 +34,17 @@ instance Show Board where
                     char0 = if existsL b l0 then "——" else "  "
                     char1 = if existsL b l1 then "|" else " "
                     continue = showB (B n b) i (j+1) l
+
+isJust :: Maybe a -> Bool
+isJust (Just _) = True
+isJust _        = False
+
+fromJust :: Maybe a -> a
+fromJust (Just x) = x
+
+isNothing :: Maybe a -> Bool
+isNothing Nothing = True
+isNothing _       = False
 
 toDown :: String -> String
 toDown [] = []
@@ -90,88 +110,128 @@ getBoxes :: Board -> Line -> Int
 getBoxes b l
   | isHorizontal l  = getBoxesH b l
   | otherwise       = getBoxesV b l
-  
- 
-addLine :: Board -> Line -> Int -> IO (Board, Int)
-addLine (B n xs) l s = return $ (B n (l:xs), s + (getBoxes (B n xs) l))
  
 readLine:: Board -> IO Line
 readLine b = do
-    putStrLn "Enter first  coordinates (row column): "
-    line1 <- getLine
-    let (x1:y1:_) = map (\x->read x::Int) (words line1) in do
-      
-      putStrLn "Enter second coordinates (row column): "
-      line2 <- getLine
-      let (x2:y2:_) = map (\x->read x::Int) (words line2) in do
-        
-        let l = (L (P x1 y1) (P x2 y2)) in do
-          if isValidMove b l
-             then do return l
-             else do
-              putStrLn "Not a valid line!"
-              readLine b
+  putStrLn "Enter first  coordinates (row column) and direction [h|v]: "
+  line1 <- getLine
+  -- Read two ints and a string containing either "h" or "v"
+  let (xS:yS:z:_) = (words line1); x = read xS :: Int; y = read yS :: Int in do
+    if (toDown z) == "h" then checkLine b (L (P x y) (P x (y+1)))
+    else checkLine b (L (P x y) (P (x+1) y))
+  where
+    checkLine :: Board -> Line -> IO Line
+    checkLine b l
+      | isValidMove b l   = do return l
+      | otherwise         = do
+        putStrLn "Not a valid line!"
+        readLine b
 
+findEmptyLine :: Board -> Int -> Int -> Orientation -> Maybe Line
+findEmptyLine (B n xs) i j ori
+  | i < (n-1) && j < (n-1) && (not $ existsL xs l1) && (ori == Vertical)    = Just l1
+  | i < (n-1) && j < (n-1) && (not $ existsL xs l2) && (ori == Horizontal)  = Just l2
+  | i < (n-1) && j < n     && (not $ existsL xs l1) && (ori == Vertical)    = Just l1
+  | i < n     && j < (n-1) && (not $ existsL xs l2) && (ori == Horizontal)  = Just l2
+  | j >= n    = findEmptyLine b1 (i+1) 0 ori
+  | i < n     = findEmptyLine b1 i (j+1) ori
+  | otherwise = Nothing
+  where
+    l1 = L (P i j) (P (i+1) j)
+    l2 = L (P i j) (P i (j+1))
+    b1  = (B n xs)
+
+findEmptyBox :: Board -> Int -> Int -> Maybe Line
+findEmptyBox b i j
+  | (isJust l1) && (getBoxes b line1) > 0 = Just line1
+  | (isJust l2) && (getBoxes b line2) > 0 = Just line2
+  | isJust l1                             = findEmptyBox b x1 (y1+1)
+  | otherwise                             = Nothing
+  where
+    l1 = findEmptyLine b i j Vertical
+    l2 = findEmptyLine b i j Horizontal
+    Just line1 = l1
+    Just line2 = l2
+    (L (P x1 y1) (P x2 y2)) = line1
+
+cpuRandom :: Board -> IO Line
+cpuRandom b
+  | isJust line   = return (fromJust line)
+  | otherwise     = return (L (P 0 0) (P 0 1))
+  where 
+    line = findEmptyLine b 0 0 Both
+
+              
+cpuBest :: Board -> IO Line
+cpuBest b 
+  | isJust l  = return $ fromJust l
+  | otherwise = return $ fromJust $ findEmptyLine b 0 0 Both
+  where 
+    l = findEmptyBox b 0 0
+
+-- The function f decides which line to add and then the line is added to the board,
+-- the line must be a valid line
 doMovement :: Board -> Int -> (Board -> IO Line) -> IO (Board, Int)
 doMovement b s f = do
   line <- f b
   addLine b line s
+    where
+      addLine :: Board -> Line -> Int -> IO (Board, Int)
+      addLine (B n xs) l s = return $ (B n (l:xs), s + (getBoxes (B n xs) l))
   
 isGameFinished :: Board -> Bool
 isGameFinished (B n xs) = (length xs) == (2*n0*(n0+1)) where n0 = n-1
 
-finishGame :: Int -> Int -> IO ()
-finishGame n m
-  | n > m       = do { putStrLn "Player 1" ; return () }
-  | otherwise   = do { putStrLn "Player 2" ; return () }
-                       
-
-getPlayer :: String -> (Board -> IO Line)
-getPlayer s
-  | s0 == "cpu" || s0 == "c" = readLine --Change to CPU function
-  | otherwise = readLine
-  where s0 = toDown s
+finishGame :: Board -> Int -> Int -> IO ()
+finishGame b n m
+  | n > m       = do { putStrLn $ st ++ "Player 1"; sc; fin; return () }
+  | otherwise   = do { putStrLn $ st ++ "Player 2"; sc; fin; return () }
+  where 
+    sc = do { putStrLn "Final Score"; putStrLn $ "Player 1: " ++ (show n); putStrLn $ "Player 2: " ++ (show m) }
+    st = "Game Finished! winner: "
+    fin = do { putStrLn "Final board"; print b }
 
 gameLoop:: (Board -> IO Line) -> (Board -> IO Line) -> Board -> Int -> Int -> IO ()
 gameLoop p1 p2 b n m = do
   putStrLn "Score"
   putStrLn ("Player 1: " ++ (show n))
   putStrLn ("Player 2: " ++ (show m))
+  putStrLn "Player 1, is your turn!"
   putStrLn "Current board:"
   print b
-  
-  putStrLn "Player 1 Move"
   (b1, n1) <- doMovement b n p1
-  print b1
   
   if isGameFinished b1
-     then do 
-       putStr "Game Finished! winner: " 
-       
+     then finishGame b1 n1 m
      else do
   
-  putStrLn "Player 2 Move"
+  putStrLn "Player 2, is your turn!"
+  putStrLn "Current board:"
+  print b1
   (b2, m1) <- doMovement b1 m p2
   
   if isGameFinished b2
-    then do 
-      putStr "Game Finished! winner: " 
-      if n > m then do putStrLn "Player 1"
-               else do putStrLn "Player 2"
-      return ()
+    then finishGame b2 n1 m1
     else do
       
   putStrLn ""
   putStrLn "--------------------"
   gameLoop p1 p2 b2 n1 m1
-  
+
 main:: IO ()
 main = do
-    putStrLn "Choose the game mode for player1 [human|CPU]"
-    line1 <- getLine
-    putStrLn "Choose the game mode for player2 [human|CPU]"
-    line2 <- getLine
-    putStrLn "Choose the size of the board: "
-    line <- getLine 
-    gameLoop readLine readLine (B ((read line :: Int) + 1) []) 0 0
-    return ()
+  putStrLn "Choose the game mode for player1 [human|CPURandom|CPUBest]"
+  line1 <- getLine
+  putStrLn "Choose the game mode for player2 [human|CPURandom|CPUBest]"
+  line2 <- getLine
+  putStrLn "Choose the size of the board: "
+  line <- getLine 
+  gameLoop (getPlayer line1) (getPlayer line2) (B ((read line :: Int) + 1) []) 0 0
+  return ()
+  where
+    getPlayer :: String -> (Board -> IO Line)
+    getPlayer s0
+      | s == "human"                    = readLine
+      | s == "cpurandom" || s == "cpur" = cpuRandom
+      | otherwise                       = cpuBest
+      where s = toDown s0
