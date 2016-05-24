@@ -14,25 +14,6 @@ class Restaurant:
     self.telfs = []
     self.web = ""
     self.email = ""
-
-  def addName(self,name):
-    self.name = name
-    
-  def addAddress(self, address):
-    self.address = address
-    
-  def addLocation(self, location):
-    self.location = location
-    
-  def addTel(self, telf):
-      if "+" in telf:
-        self.telfs.append(telf)
-        
-  def addWeb(self, web):
-    self.web = web
-    
-  def addEmail(self, email):
-    self.email = email
     
 class Address:
   
@@ -45,41 +26,14 @@ class Address:
     self.locality = ""
     self.region = ""
     self.country = ""
-  
-  def addStreetName(self, name):
-    self.streetName = name
-  
-  def addStreetNumber(self, number):
-    self.streetNumber = number
-    
-  def addDistrict(self, district):
-    self.district = district
-  
-  def addPostalCode(self, postalCode):
-    self.postalCode = postalCode
-    
-  def addLocality(self, locality):
-    self.locality = locality
-    
-  def addRegion(self, region):
-    self.region = region
-    
-  def addCountry(self, country):
-    self.country = country
     
 class Location:
   
-  latitude = 0
-  longitude = 0
+  def __init__(self):
+    self.latitude = 0
+    self.longitude = 0
   
-  def addLatitude(self, latitude):
-    self.latitude = latitude
-    
-  def addLongitude(self, longitude):
-    self.longitude = longitude
-    
-
-
+  
 # creem una subclasse i sobreescribim el metodes del han
 class MHTMLParser(HTMLParser):
 
@@ -93,19 +47,19 @@ class MHTMLParser(HTMLParser):
     if tag == 'v:vcard':
       self.crest = Restaurant()
     elif tag == 'v:address':
-      self.crest.addAddress(Address())
+      self.crest.address = Address()
     elif tag == 'v:location':
-      self.crest.addLocation(Location())
+      self.crest.location = Location()
     elif tag == 'v:email':
       self.ctop = tag
     elif tag == 'v:url':
       for t in attrs:
         if len(t) >= 2 and t[0] == 'rdf:resource':
-          self.crest.addWeb(t[1])
+          self.crest.web =t[1]
     elif tag == 'rdf:description' and self.ctop == 'v:email':
       for t in attrs:
         if len(t) >= 2 and t[0] == 'rdf:about':
-          self.crest.addEmail(t[1].replace("mailto:", ""))
+          self.crest.email = t[1].replace("mailto:", "")
 
   def handle_endtag(self, tag):
     self.ctag = ""
@@ -115,33 +69,35 @@ class MHTMLParser(HTMLParser):
       self.ctop = ""
 
   def handle_data(self, data):
+    # Remove spaces
+    data = data.strip()
     if self.ctag == 'v:fn':
-      self.crest.addName(data)
+      self.crest.name = data
       
     elif self.ctag == 'xv:streetname':
-      self.crest.address.addStreetName(data)
+      self.crest.address.streetName = data
     elif self.ctag == 'xv:streetnumber':
-      self.crest.address.addStreetNumber(data)
+      self.crest.address.streetNumber = data
     elif self.ctag == 'v:region':
-      self.crest.address.addRegion(data)
+      self.crest.address.region = data
     elif self.ctag == 'xv:district':
-      self.crest.address.addDistrict(data)
+      self.crest.address.district  = data
     elif self.ctag == 'v:postal-code':
-      self.crest.address.addPostalCode(data)
+      self.crest.address.postalCode = data
     elif self.ctag == 'v:locality':
-      self.crest.address.addLocality(data)
+      self.crest.address.locality = data
     elif self.ctag == 'v:country-name':
-      self.crest.address.addCountry(data)
+      self.crest.address.country = data
       
     elif self.ctag == 'v:latitude':
-      self.crest.location.addLatitude(float(data))
+      self.crest.location.latitude = float(data)
     elif self.ctag == 'v:longitude':
-      self.crest.location.addLongitude(float(data))
+      self.crest.location.longitude = float(data)
       
-    elif self.ctag == 'rdf:value':
-      self.crest.addTel(data)
+    elif self.ctag == 'rdf:value' and "+" in data:
+      self.crest.telfs.append(data)
     elif self.ctag == 'v:url':
-      self.crest.addWeb(data)
+      self.crest.web = data
       
 
 f = open('restaurants.rdf', 'rb') # obre l'arxiu
