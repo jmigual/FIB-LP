@@ -1,3 +1,4 @@
 *.kate-swp
 *.html
 *~lock*
+*.pyc
