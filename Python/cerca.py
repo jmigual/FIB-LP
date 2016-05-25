@@ -15,12 +15,9 @@ class Location:
     
   def distanceTo(self, loc):
     R = 6.371e6 # metres
-    phiInc = loc.lat - self.lat
-    lambInc = loc.lon - self.lon
-    
-    a = sin(phiInc/2)**2 + cos(self.lat) * cos(loc.lat) + sin(lambInc/2)**2
-    c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return R * c
+    x = (self.lat - loc.lat) * cos((self.lon + loc.lon)/2.0)
+    y = self.lon - loc.lon
+    return R * sqrt(x**2.0 + y**2.0)
   
   def __str__(self):
     latD = degrees(self.lat)
@@ -40,11 +37,25 @@ class Location:
 class BicingStation:
   def __init__(self):
     self.location = Location()
-    self.slots = -1
-    self.bikes = -1
+    self.slots  = -1
+    self.bikes  = -1
     self.street = ""
     self.status = "OPN"
+    self.id     = -1
 
+  def parseFromXML(self, data):
+    self.id       = int(data.find("id").text)
+    self.status   = data.find("status").text
+    self.location = Location(float(data.find("lat").text), float(data.find("long").text))
+    self.slots    = int(data.find("slots").text)
+    self.bikes    = int(data.find("bikes").text)
+    self.street   = data.find("street").text
+
+  def __str__(self):
+    return str(self.id) + " " + str(self.location) + " " + self.street
+
+  def __repr__(self):
+    return self.__str__()
 
 class Restaurant:
   def __init__(self, info):
@@ -70,6 +81,9 @@ class Restaurant:
     
   def __str__(self):
     return self.name + " Location: " + str(self.location)
+
+  def __repr__(self):
+    return self.__str__()
 
 class Query:
   def __init__(self, queryArr):
@@ -107,13 +121,6 @@ def searchRestaurants(query):
       if query.satisfies(rest.name):
         res.append(rest)
   return res
-
-def getBicings():
-  response = urllib2.urlopen("http://wservice.viabicing.cat/getstations.php?v=1")
-  root = ET.fromstring(response.read())
-  print root
-  print root.tag
-  return
 
 def wColumn(data):
   return "<td>" + data + "</td>"
@@ -191,6 +198,17 @@ def writeHTMLrestaurants(res):
 
     file.write("</tbody></table></body>")
 
+def getBicings():
+  response = urllib2.urlopen("http://wservice.viabicing.cat/getstations.php?v=1")
+  root = ET.fromstring(response.read())
+  print root.tag
+
+  res = []
+  for node in root.findall("station"):
+    station = BicingStation()
+    station.parseFromXML(node)
+    res.append(station)
+  return res
 
 ################
 ####  MAIN  ####
@@ -214,7 +232,9 @@ def main():
 
   print len(res), "restaurants found:"
   for rest in res:
-    print rest.name
+
+    rest.bicings = [ x for x in bicing if x.location.distanceTo(rest.location) <= 1000.0 ]
+    print rest.name + ": ", len(rest.bicings), "stations found"
 
   print "\nWriting data to restaurants.html, please wait"
   writeHTMLrestaurants(res)
