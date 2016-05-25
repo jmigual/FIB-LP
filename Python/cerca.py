@@ -28,6 +28,12 @@ class Location:
     ret += str(lonD) + ("E" if lonD > 0 else "W")
     return ret
 
+  def getLatitude(self):
+    return degrees(self.lat)
+
+  def getLongitude(self):
+    return degrees(self.lon)
+
 class Restaurant:
   def __init__(self, info):
     self.name       = info[0]
@@ -41,7 +47,8 @@ class Restaurant:
     self.email      = info[9]
     self.location   = Location(float(info[10]), float(info[11]))
     self.extra      = []
-    
+    self.bicings    = []
+
     if len(info) >= 13:
       self.extra.append(info[12])
     if len(info) >= 14:
@@ -70,16 +77,9 @@ class Query:
     return False
 
 
+def searchRestaurants(query):
+  res = []
 
-def main():
-  if len(sys.argv) != 2:
-    print "Usage: cerca.py <List of parameters>"
-    return
-  
-  # Convert string to tuple and array
-  queryArr = ast.literal_eval(sys.argv[1])
-  query = Query(queryArr)
-  
   # Read restaurants info
   with open('restaurants.csv','r') as csvfile:
     reader = csv.reader(csvfile, delimiter='\t')
@@ -93,8 +93,107 @@ def main():
       
       rest = Restaurant(row)
       if query.satisfies(rest.name):
-        print rest.name
-        
+        res.append(rest)
+  return res
+
+def getBicings():
+  return
+
+def wColumn(data):
+  return "<td>" + data + "</td>"
+
+def writeHTMLrestaurants(res):
+  # First of all write the headers of the html page
+  with open('restaurants.html', 'w') as file:
+    file.write("""
+      <!DOCTYPE html>
+      <head>
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <meta charset="UTF-8">
+        <title>Restaurants amb bicis</title>
+        <meta name="author" content="joan.marce.igual@est.fib.upc.edu" >
+        <style>
+          table {
+            table-layout: auto;
+            white-space: nowrap;
+          }
+        </style>
+      </head>
+      <body>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>NOM</th>
+              <th>ADREÇA</th>
+              <th>C.P.</th>
+              <th>POBLACIÓ</th>
+              <th>PAÍS</th>
+              <th>Telèfon 1</th>
+              <th>Telèfon 2</th>
+              <th>WEB</th>
+              <th>e-mail</th>
+              <th>LATITUD</th>
+              <th>LONGITUD</th>
+              <th>INFO EXTRA 1</th>
+              <th>INFO EXTRA 2</th>
+              <th>INFO EXTRA 3</th>
+            </tr>
+          </thead>
+          <tbody> """)
+
+    td = "<td>"
+    tdc = "<tdc>"
+    i = 1
+    l = len(res)
+    for rest in res:
+      print i, "of", l
+      file.write("<tr>" + "<th scope='row'>" + str(i) + "</th>" + 
+        wColumn(rest.name) +
+        wColumn(rest.address) + 
+        wColumn(rest.postal) +
+        wColumn(rest.town) + 
+        wColumn(rest.country) +
+        wColumn(rest.tel[0]) +
+        wColumn(rest.tel[1]) +
+        wColumn("<a href='" + rest.web + "'>" + rest.web + "</a>") + 
+        wColumn("<a href='mailto:" + rest.email + "'>" + rest.email + "</a>") +
+        wColumn(str(rest.location.getLatitude())) + 
+        wColumn(str(rest.location.getLongitude())) +
+        wColumn(rest.extra[0] if len(rest.extra) > 0 else "") +
+        wColumn(rest.extra[1] if len(rest.extra) > 1 else "") +
+        wColumn(rest.extra[2] if len(rest.extra) > 2 else "") +
+        "</tr>")
+      i += 1
+
+    file.write("</tbody></table></body>")
+
+
+################
+####  MAIN  ####
+################
+
+def main():
+  if len(sys.argv) != 2:
+    print "Usage: cerca.py <List of parameters>"
+    return
+  
+  # Convert string to tuple and array
+  queryArr = ast.literal_eval(sys.argv[1])
+  
+  res = searchRestaurants(Query(queryArr))
+  
+  if len(res) <= 0:
+    print "No restaurants found"
+    return
+
+  print len(res), "restaurants found:"
+  for rest in res:
+    print rest.name
+
+  print "\nWriting data to restaurants.html, please wait"
+  writeHTMLrestaurants(res)
 
 if __name__ == "__main__":
   main()
