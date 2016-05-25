@@ -69,6 +69,8 @@ class Query:
       return any(map(Query.__satisfies, [words]*len(query), query))
     return False
 
+
+
 def main():
   if len(sys.argv) != 2:
     print "Usage: cerca.py <List of parameters>"
