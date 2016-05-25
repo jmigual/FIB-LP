@@ -4,7 +4,9 @@
 import csv
 import sys
 import ast
+import urllib2
 from math import *
+import xml.etree.ElementTree as ET
 
 class Location:    
   def __init__(self, lat = 0, lon = 0):
@@ -33,6 +35,16 @@ class Location:
 
   def getLongitude(self):
     return degrees(self.lon)
+
+
+class BicingStation:
+  def __init__(self):
+    self.location = Location()
+    self.slots = -1
+    self.bikes = -1
+    self.street = ""
+    self.status = "OPN"
+
 
 class Restaurant:
   def __init__(self, info):
@@ -97,10 +109,20 @@ def searchRestaurants(query):
   return res
 
 def getBicings():
+  response = urllib2.urlopen("http://wservice.viabicing.cat/getstations.php?v=1")
+  root = ET.fromstring(response.read())
+  print root
+  print root.tag
   return
 
 def wColumn(data):
   return "<td>" + data + "</td>"
+
+def wLink(data, text):
+  return "<a href='" + data + "'>" + text + "</a>"
+
+def wGeo(loc, text):
+  return wLink("geo:" + str(loc.getLatitude()) + "," + str(loc.getLongitude()), text)
 
 def writeHTMLrestaurants(res):
   # First of all write the headers of the html page
@@ -155,12 +177,12 @@ def writeHTMLrestaurants(res):
         wColumn(rest.postal) +
         wColumn(rest.town) + 
         wColumn(rest.country) +
-        wColumn(rest.tel[0]) +
-        wColumn(rest.tel[1]) +
-        wColumn("<a href='" + rest.web + "'>" + rest.web + "</a>") + 
-        wColumn("<a href='mailto:" + rest.email + "'>" + rest.email + "</a>") +
-        wColumn(str(rest.location.getLatitude())) + 
-        wColumn(str(rest.location.getLongitude())) +
+        wColumn(wLink("tel:" + rest.tel[0], rest.tel[0])) +
+        wColumn(wLink("tel:"+ rest.tel[1], rest.tel[1])) +
+        wColumn(wLink(rest.web, rest.web)) +
+        wColumn(wLink("mailto:" + rest.email, rest.email)) +
+        wColumn(wGeo(rest.location, str(rest.location.getLatitude()))) + 
+        wColumn(wGeo(rest.location, str(rest.location.getLongitude()))) +
         wColumn(rest.extra[0] if len(rest.extra) > 0 else "") +
         wColumn(rest.extra[1] if len(rest.extra) > 1 else "") +
         wColumn(rest.extra[2] if len(rest.extra) > 2 else "") +
@@ -187,6 +209,8 @@ def main():
   if len(res) <= 0:
     print "No restaurants found"
     return
+
+  bicing = getBicings()
 
   print len(res), "restaurants found:"
   for rest in res:
