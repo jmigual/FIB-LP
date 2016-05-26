@@ -51,8 +51,11 @@ class BicingStation:
     self.bikes    = int(data.find("bikes").text)
     self.street   = data.find("street").text
 
+  def toHTML(self):
+    return self.street + "<br>Slots: " + str(self.slots) + "<br>Bikes:" + str(self.bikes)
+
   def __str__(self):
-    return str(self.id) + " " + str(self.location) + " " + self.street
+    return self.street + " Slots: " + str(self.slots) + " Bikes: " + str(self.bikes)
 
   def __repr__(self):
     return self.__str__()
