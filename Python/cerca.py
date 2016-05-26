@@ -73,7 +73,8 @@ class Restaurant:
     self.email      = info[9]
     self.location   = Location(float(info[10]), float(info[11]))
     self.extra      = []
-    self.bicings    = []
+    self.bicingsS   = []
+    self.bicingsB   = []
 
     if len(info) >= 13:
       self.extra.append(info[12])
@@ -128,11 +129,32 @@ def searchRestaurants(query):
 def wColumn(data):
   return "<td>" + data + "</td>"
 
-def wLink(data, text):
-  return "<a href='" + data + "'>" + text + "</a>"
+def wLink(data, text, target="_blank"):
+  return "<a href='" + data + "' target='" + target + "'>" + text + "</a>"
 
 def wGeo(loc, text):
-  return wLink("geo:" + str(loc.getLatitude()) + "," + str(loc.getLongitude()), text)
+  return wLink("https://www.google.com/maps?q=loc:" + str(loc.getLatitude()) + "," + str(loc.getLongitude()), text)
+
+def wBicings(stationsS, stationsB, id):
+  res = "<td>"
+  res += "<a data-toggle='collapse' href='#collapseS" + str(id) + "'>" + str(len(stationsS)) + " Estacions amb espai</a>"
+  res += "<div id='collapseS" + str(id) + "' class='panel-collapse collapse'><ul class='list-group'>"
+  for s in stationsS:
+    res += "<li class='list-group-item'>"
+    res += s.toHTML()
+    res += "</li>"
+  res += "</ul></div>"
+
+  res = "<a data-toggle='collapse' href='#collapseB" + str(id) + "'>" + str(len(stationsB)) + " Estacions amb bicis</a>"
+  res += "<div id='collapseB" + str(id) + "' class='panel-collapse collapse'><ul class='list-group'>"
+  for s in stationsB:
+    res += "<li class='list-group-item'>"
+    res += s.toHTML()
+    res += "</li>"
+  res += "</ul></div>"
+
+  res += "</td>"
+  return res
 
 def writeHTMLrestaurants(res):
   # First of all write the headers of the html page
@@ -141,10 +163,12 @@ def writeHTMLrestaurants(res):
       <!DOCTYPE html>
       <head>
         <!-- Latest compiled and minified CSS -->
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
         <meta charset="UTF-8">
         <title>Restaurants amb bicis</title>
         <meta name="author" content="joan.marce.igual@est.fib.upc.edu" >
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
         <style>
           table {
             table-layout: auto;
@@ -159,6 +183,7 @@ def writeHTMLrestaurants(res):
               <th>#</th>
               <th>NOM</th>
               <th>ADREÇA</th>
+              <th>ESTACIONS BICING</th>
               <th>C.P.</th>
               <th>POBLACIÓ</th>
               <th>PAÍS</th>
@@ -174,9 +199,6 @@ def writeHTMLrestaurants(res):
             </tr>
           </thead>
           <tbody> """)
-
-    td = "<td>"
-    tdc = "<tdc>"
     i = 1
     l = len(res)
     for rest in res:
@@ -184,6 +206,7 @@ def writeHTMLrestaurants(res):
       file.write("<tr>" + "<th scope='row'>" + str(i) + "</th>" + 
         wColumn(rest.name) +
         wColumn(rest.address) + 
+        wBicings(rest.bicingsS, rest.bicingsB, i) +
         wColumn(rest.postal) +
         wColumn(rest.town) + 
         wColumn(rest.country) +
@@ -236,8 +259,11 @@ def main():
   print len(res), "restaurants found:"
   for rest in res:
 
-    rest.bicings = [ x for x in bicing if x.location.distanceTo(rest.location) <= 1000.0 ]
-    print rest.name + ": ", len(rest.bicings), "stations found"
+    rest.bicingsS = [ x for x in bicing if x.slots > 0 and  x.location.distanceTo(rest.location) <= 1000.0 ]
+    rest.bicingsB = [ x for x in bicing if x.bikes > 0 and  x.location.distanceTo(rest.location) <= 1000.0 ]
+    print rest.name + ":\n  ", len(rest.bicingsB) + len(rest.bicingsS), "stations found"
+    rest.bicingsS.sort(key=lambda x: x.location.distanceTo(rest.location))
+    rest.bicingsB.sort(key=lambda x: x.location.distanceTo(rest.location))
 
   print "\nWriting data to restaurants.html, please wait"
   writeHTMLrestaurants(res)
