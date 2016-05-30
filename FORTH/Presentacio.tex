@@ -12,7 +12,7 @@
 \definecolor{redstrings}{rgb}{0.9,0,0}
 \lstdefinelanguage{FORTH}
 {   
-    morekeywords={+, *, - },
+    morekeywords={+, *, -, DO, LOOP, EMIT, DUP, DROP, CR, CHAR },
     keywordstyle=\color{bluekeywords},
     sensitive=false,
     basicstyle=\ttfamily,
@@ -21,7 +21,7 @@
     aboveskip=\bigskipamount,
     tabsize=4,
     morecomment=[l][\color{greencomments}]{\\},
-    morecomment=[s][\color{greencomments}]{(}{)},
+    morecomment=[s][\color{greencomments}]{( }{--\ )},
     morestring=[b]",
     showstringspaces=false,
     literate={}{\ }1,
@@ -145,10 +145,40 @@
     \includegraphics[width=0.2\linewidth]{stack_4}
 \end{frame}
 
-\subsection{Exemples}
+\section{Exemples}
 
 \begin{frame}[fragile]
-    content...
+    
+    \begin{lstlisting}[frame=single, basicstyle=\tiny\ttfamily]
+: STAR ( -- )           \Imprimeix * per pantalla          
+  [CHAR] * EMIT ;       \ $ STAR
+                        \ *
+
+: STARS     ( n -- )    \Imprimeix n estrelles
+  0 DO STAR LOOP        \Fer n iteracions (de 0 a n-1) i executa
+  STAR ;                \ $ 3 STARS
+                        \ ***
+  
+: SQUARE    ( n -- )    \Imprimir n^2 estrelles en forma de quadrat
+  DUP 0 DO              \ $ 3 SQUARE
+  DUP STARS CR          \ ***
+  LOOP DROP ;           \ ***
+                        \ ***
+  
+: TRIANGLE  ( n -- )    \Imprimir un triangle de n-línies
+  1 + 1 DO              \ $ 3 TRIANGLE
+  I STARS CR            \ *
+  LOOP ;                \ **
+                        \ ***
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Llenguatges similars}
+    Com a llenguatges similars hi ha el RPL de les calculadores HP
+    \includegraphics[width=0.4\linewidth]{hp}
+    
+    i també ha inspirat altres llenguatges com \emph{Factor, PostScript o REBOL}
 \end{frame}
 
 \end{document}
