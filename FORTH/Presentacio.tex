@@ -12,7 +12,7 @@
 \definecolor{redstrings}{rgb}{0.9,0,0}
 \lstdefinelanguage{FORTH}
 {   
-    morekeywords={+, *, -, DO, LOOP, EMIT, DUP, DROP, CR, CHAR },
+    morekeywords={+, *, -, DO, LOOP, EMIT, DUP, DROP, CR, CHAR, I },
     keywordstyle=\color{bluekeywords},
     sensitive=false,
     basicstyle=\ttfamily,
@@ -24,8 +24,7 @@
     morecomment=[s][\color{greencomments}]{( }{--\ )},
     morestring=[b]",
     showstringspaces=false,
-    literate={}{\ }1,
-        stringstyle=\color{redstrings},
+    stringstyle=\color{redstrings},
 }
 \lstset{language=FORTH} 
 
